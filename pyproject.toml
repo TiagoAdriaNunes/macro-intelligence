@@ -1,0 +1,50 @@
+[project]
+name = "macro-intelligence"
+version = "0.1.0"
+description = "AI-powered macroeconomic research assistant built with Python, LangGraph, and OpenRouter."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Tiago Adria Nunes" }]
+requires-python = ">=3.11"
+dependencies = [
+    "langchain-openrouter>=0.2.9",
+    "langgraph>=1.2.20",
+    "pandas>=3.1.1",
+    "python-bcb>=0.4.1",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+    "shiny>=1.9.0",
+    "shinychat>=0.7.2",
+    "wbgapi>=1.0.14",
+]
+
+[project.scripts]
+macro-intelligence = "macro_intelligence.cli:main"
+macro-intelligence-app = "macro_intelligence.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Phoenix installs a pytest plugin we don't use; loading it imports Phoenix and its LDAP library,
+# which prints deprecation warnings
+addopts = "-p no:phoenix"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, import sorting, pyupgrade, bugbear, simplify
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]  # the formatter wraps code; long strings and comments are fine
+
+[dependency-groups]
+dev = [
+    "arize-phoenix>=21.0.0",
+    "openinference-instrumentation-langchain>=0.1.82",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
