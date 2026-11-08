@@ -54,21 +54,28 @@ def _dataset(ind: Indicator, country: str, frequency: str, observations: list[di
     }
 
 
+def _dates(series: pd.Series) -> pd.DatetimeIndex:
+    """The series' index as dates; pandas types `series.index` as a plain Index."""
+    return pd.DatetimeIndex(series.index)
+
+
 def _fetch_bcb(ind: Indicator, start: date) -> dict:
     df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
+    assert isinstance(df, pd.DataFrame)  # sgs.get returns a list only with multi=False
     series = df[ind.key].dropna()
 
     # The Selic target is published ahead, up to the next Copom meeting. Drop future dates.
-    series = series[series.index <= pd.Timestamp(date.today())]
+    series = series[_dates(series) <= pd.Timestamp(date.today())]
 
     frequency = ind.frequency
     if ind.frequency == "daily":
         # Keep the last observation of each month so the LLM prompt stays small.
-        series = series.groupby(series.index.to_period("M")).tail(1)
+        series = series.groupby(_dates(series).to_period("M")).tail(1)
         frequency = "monthly (last daily value of each month)"
 
     observations = [
-        {"date": ts.date().isoformat(), "value": float(value)} for ts, value in series.items()
+        {"date": ts.date().isoformat(), "value": float(value)}
+        for ts, value in zip(_dates(series), series, strict=True)
     ]
     return _dataset(ind, "BRA", frequency, observations)
 

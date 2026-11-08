@@ -19,7 +19,8 @@ MODELS_URL = "https://openrouter.ai/api/v1/models"  # public, no key needed
 USER_MODELS_URL = "https://openrouter.ai/api/v1/models/user"  # needs the key
 FALLBACK_MODEL = "openrouter/free"  # router that picks a free model per request; supports tools
 REQUEST_TIMEOUT = 10  # seconds
-MIN_UPTIME_30M = 100  # % of requests answered in the last 30 minutes; None to skip the check
+# % of requests answered in the last 30 minutes; None to skip the check
+MIN_UPTIME_30M: float | None = 100
 
 # How much reasoning models think (OpenRouter `reasoning.effort`). The agent picks indicators and
 # reads small tables, so low is faster; models without that level get the nearest one.

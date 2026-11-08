@@ -73,7 +73,7 @@ def server(input, output, session):
     async def _(user_input: str):
         # Earlier turns for follow-up questions; the last message is the one just sent
         history = [
-            {"role": m["role"], "content": str(m["content"])}
+            {"role": m["role"], "content": m["content"]}
             for m in chat.messages()[:-1]
             if m["role"] in ("user", "assistant")
         ]
@@ -93,4 +93,5 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    run_app("macro_intelligence.app:app", launch_browser=True)
+    # Shiny sets run_app to None only when running in the browser (Pyodide)
+    run_app("macro_intelligence.app:app", launch_browser=True)  # pyrefly: ignore[not-callable]
