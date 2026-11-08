@@ -18,7 +18,15 @@ from dotenv import load_dotenv
 log = logging.getLogger(__name__)
 
 PROJECT_NAME = "macro-intelligence"
+PHOENIX_PORTS = {6006: "web UI and HTTP traces", 4317: "gRPC traces"}
+TRACES_PORT = 4317  # where traces go when PHOENIX_COLLECTOR_ENDPOINT isn't set
 _enabled = False
+
+
+def _port_in_use(port: int) -> bool:
+    with socket.socket() as s:
+        s.settimeout(0.5)
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 def setup_tracing() -> bool:
@@ -27,6 +35,13 @@ def setup_tracing() -> bool:
     load_dotenv()
     if _enabled or os.getenv("PHOENIX_TRACING", "").strip().lower() not in ("1", "true", "yes"):
         return _enabled
+    # Without a running Phoenix, every batch of traces would log a connection error
+    if not os.getenv("PHOENIX_COLLECTOR_ENDPOINT") and not _port_in_use(TRACES_PORT):
+        log.warning(
+            "PHOENIX_TRACING is on but Phoenix isn't running, so tracing is off. Start it with "
+            "`uv run python -m macro_intelligence.tracing`, then restart the app."
+        )
+        return False
     try:
         from openinference.instrumentation.langchain import LangChainInstrumentor
         from phoenix.otel import register
@@ -43,15 +58,6 @@ def setup_tracing() -> bool:
     _enabled = True
     log.info("Tracing to Phoenix, project %r", PROJECT_NAME)
     return True
-
-
-PHOENIX_PORTS = {6006: "web UI and HTTP traces", 4317: "gRPC traces"}
-
-
-def _port_in_use(port: int) -> bool:
-    with socket.socket() as s:
-        s.settimeout(0.5)
-        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 def serve() -> None:

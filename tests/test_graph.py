@@ -167,3 +167,32 @@ def test_bcb_drops_future_dates_and_condenses_daily(monkeypatch):
     assert all(d <= today.date().isoformat() for d in dates)
     assert len(dates) == len({d[:7] for d in dates})  # one value per month
     assert ds["frequency"].startswith("monthly")
+
+
+def test_worldbank_rows_become_one_sorted_dataset_per_country(monkeypatch):
+    requested = {}
+
+    def fake_fetch(code, economy, time):
+        requested["years"] = list(time)
+        return [
+            {"economy": "ARG", "time": "YR2025", "value": None},  # not published yet
+            {"economy": "ARG", "time": "YR2024", "value": -1.3},
+            {"economy": "BRA", "time": "YR2024", "value": 3.4},
+            {"economy": "BRA", "time": "YR2023", "value": 3.2},
+        ]
+
+    monkeypatch.setattr(sources.wb.data, "fetch", fake_fetch)
+    this_year = date.today().year
+
+    datasets = sources.fetch_indicator(
+        CATALOG["wb_gdp_growth"], ["BRA", "ARG"], date(this_year - 1, 1, 1)
+    )
+
+    assert [d["country"] for d in datasets] == ["BRA", "ARG"]
+    assert datasets[0]["observations"] == [
+        {"date": "2023", "value": 3.2},
+        {"date": "2024", "value": 3.4},
+    ]
+    assert datasets[1]["observations"] == [{"date": "2024", "value": -1.3}]
+    # a 1-year window still asks for the last 3 years, so published figures are found
+    assert requested["years"] == [this_year - 2, this_year - 1, this_year]

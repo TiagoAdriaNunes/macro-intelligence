@@ -30,6 +30,10 @@ REQUEST_TIMEOUT = 30  # seconds
 # wbgapi passes get_options straight to requests.get.
 wb.get_options.setdefault("timeout", (10, 90))  # (connect, read) seconds
 
+# A year's World Bank figures come out during the next year, so always ask for a few years:
+# otherwise a short window early in the year finds nothing published.
+WORLD_BANK_MIN_YEARS = 3
+
 
 def fetch_indicator(ind: Indicator, countries: list[str], start: date) -> list[dict]:
     """Fetch one indicator from `start` until today. Returns one dataset per country."""
@@ -81,7 +85,9 @@ def _fetch_bcb(ind: Indicator, start: date) -> dict:
 
 
 def _fetch_worldbank(ind: Indicator, countries: list[str], start: date) -> list[dict]:
-    rows = wb.data.fetch(ind.code, economy=countries, time=range(start.year, date.today().year + 1))
+    this_year = date.today().year
+    first_year = min(start.year, this_year - WORLD_BANK_MIN_YEARS + 1)
+    rows = wb.data.fetch(ind.code, economy=countries, time=range(first_year, this_year + 1))
     by_country: dict[str, list[dict]] = {c: [] for c in countries}
     for row in rows:
         if row["value"] is None:  # years not yet published come back empty

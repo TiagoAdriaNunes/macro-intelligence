@@ -3,11 +3,17 @@
 _Looking up: IPCA inflation (12-month), Selic target rate..._   <- after `plan`
 <answer, streamed token by token>                                <- `answer` node
 Sources, data check, model                                       <- after `verify`
+
+When a model fails mid-answer, the next one starts over: its text replaces the partial one,
+so the reply always shows the answer the data check verified.
 """
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from dataclasses import dataclass
+from typing import Any
 
+from langchain_core.messages import BaseMessage
 from langgraph.graph.state import CompiledStateGraph
 
 from .analysis import source_lines
@@ -17,6 +23,16 @@ from .indicators import CATALOG
 log = logging.getLogger(__name__)
 
 FAILED = "**No model could answer right now.** The free models may be busy; please try again in a minute."
+
+
+@dataclass(frozen=True)
+class Replace:
+    """Replace the whole reply shown so far with `text`."""
+
+    text: str
+
+
+Chunk = str | Replace  # text to append, or a replacement
 
 
 def looking_up(plan: dict) -> str:
@@ -39,39 +55,70 @@ def footer(datasets: list[dict], model: str, check: dict | None = None) -> str:
     return "\n\n---\n\n" + "\n\n".join(parts) if parts else ""
 
 
-async def answer_stream(
-    graph: CompiledStateGraph, question: str, history: list[dict] | None = None
-) -> AsyncIterator[str]:
-    """Markdown chunks of the agent's reply to `question`, given earlier `history` turns."""
-    streamed = False  # whether the answer arrived token by token
-    datasets: list[dict] = []
-    model = ""
-    try:
-        async for mode, payload in graph.astream(
-            {"question": question, "history": history or []}, stream_mode=["updates", "messages"]
-        ):
-            if mode == "messages" and isinstance(payload, tuple):
-                chunk, meta = payload
-                text = getattr(chunk, "text", "")
-                if meta.get("langgraph_node") == "answer" and isinstance(text, str) and text:
-                    streamed = True
-                    yield text
-                continue
-            if not isinstance(payload, dict):  # "updates": {node: its state update}
-                continue
+class AnswerStream:
+    """The agent's reply to `question`, given earlier `history` turns, as Markdown chunks:
+    `async for chunk in AnswerStream(graph, question)`.
 
-            for node, update in payload.items():
-                update = update or {}
-                if node == "plan" and update["plan"]["indicators"]:
-                    yield looking_up(update["plan"])
-                elif node == "fetch_data":
-                    datasets = update.get("datasets", [])
-                elif node in ("answer", "no_data"):
-                    if not streamed:  # deterministic message, or a model that didn't stream
-                        yield update["answer"]
-                    model = update.get("model", "")
-                elif node == "verify":
-                    yield footer(datasets, model, update.get("check"))
-    except Exception:
-        log.exception("Agent failed for question %r", question)
-        yield ("\n\n" if streamed else "") + FAILED
+    Once the stream ends, `answer` holds the answer alone, without the lookup line and footer,
+    to pass as history with later questions. It stays None when no answer was written.
+    """
+
+    def __init__(
+        self, graph: CompiledStateGraph, question: str, history: list[dict] | None = None
+    ) -> None:
+        self.graph = graph
+        self.question = question
+        self.history = history or []
+        self.answer: str | None = None
+        self._lookup = ""  # the "Looking up" line shown before the answer
+        self._streamed = ""  # answer text streamed so far
+        self._run_id: str | None = None  # the model run that streamed it
+        self._datasets: list[dict] = []
+        self._model = ""
+
+    async def __aiter__(self) -> AsyncIterator[Chunk]:
+        inputs = {"question": self.question, "history": self.history}
+        try:
+            async for mode, payload in self.graph.astream(
+                inputs, stream_mode=["updates", "messages"]
+            ):
+                if mode == "messages" and isinstance(payload, tuple):
+                    for chunk in self._on_token(*payload):
+                        yield chunk
+                elif isinstance(payload, dict):  # "updates": {node: its state update}
+                    for node, update in payload.items():
+                        for chunk in self._on_update(node, update or {}):
+                            yield chunk
+        except Exception:
+            log.exception("Agent failed for question %r", self.question)
+            if self._streamed and self.answer is None:  # drop a failed model's partial text
+                yield Replace(self._lookup + FAILED)
+            else:
+                yield ("\n\n" if self.answer else "") + FAILED
+
+    def _on_token(self, message: BaseMessage, meta: dict[str, Any]) -> Iterator[Chunk]:
+        text = str(message.text)
+        if meta.get("langgraph_node") != "answer" or not text:
+            return
+        if self._streamed and message.id != self._run_id:  # a model failed mid-answer
+            self._streamed = ""
+            yield Replace(self._lookup)
+        self._run_id = message.id
+        self._streamed += text
+        yield text
+
+    def _on_update(self, node: str, update: dict[str, Any]) -> Iterator[Chunk]:
+        if node == "plan" and update["plan"]["indicators"]:
+            self._lookup = looking_up(update["plan"])
+            yield self._lookup
+        elif node == "fetch_data":
+            self._datasets = update.get("datasets", [])
+        elif node in ("answer", "no_data"):
+            answer = self.answer = update["answer"]
+            self._model = update.get("model", "")
+            if not self._streamed:  # a fixed message, or a model that didn't stream
+                yield answer
+            elif self._streamed != answer:  # show exactly the text the data check verifies
+                yield Replace(self._lookup + answer)
+        elif node == "verify":
+            yield footer(self._datasets, self._model, update.get("check"))

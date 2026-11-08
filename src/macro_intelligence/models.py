@@ -43,9 +43,17 @@ EXCLUDED_MODELS = {
 }
 
 
+def _is_zero(price: str | None) -> bool:
+    """Whether an OpenRouter price, a decimal string such as "0" or "0.0", is zero."""
+    try:
+        return price is not None and float(price) == 0
+    except ValueError:
+        return False
+
+
 def is_free(model: dict) -> bool:
     pricing = model.get("pricing") or {}
-    return pricing.get("prompt") == "0" and pricing.get("completion") == "0"
+    return _is_zero(pricing.get("prompt")) and _is_zero(pricing.get("completion"))
 
 
 def is_text_only(model: dict) -> bool:

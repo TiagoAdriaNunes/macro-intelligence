@@ -2,7 +2,7 @@
 
 AI research assistant for macroeconomic questions, built with Python, LangGraph and OpenRouter.
 
-Ask a question in plain language. The agent picks the indicators it needs, fetches them from official sources (Banco Central do Brasil and the World Bank), and has an LLM explain the figures using only that data, with sources cited. Each answer ends with a check that flags any figure not found in the fetched data.
+Ask a question in plain language. The agent picks the indicators it needs, fetches them from official sources (Banco Central do Brasil and the World Bank), and has an LLM explain the figures using only that data, with sources cited. Answers written from data end with a check that flags any figure not found in it.
 
 Data available: Brazilian inflation (IPCA), Selic rate, USD/BRL and unemployment; GDP growth, inflation and unemployment for any country.
 

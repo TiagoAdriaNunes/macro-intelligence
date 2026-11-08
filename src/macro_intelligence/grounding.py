@@ -106,9 +106,11 @@ def check_answer(answer: str, summaries: list[dict], texts: Sequence[str] = ()) 
     cited: set[float] = set()  # data values the answer quotes
     pending = []
     for written, value, decimals, percent in checked:
+        if value == 0:  # needs no source, and must not mark a data value as quoted
+            continue
         tolerance = 0.5 * 10**-decimals + 1e-9  # 4.58 matches 4.5813
         hit = min(values if percent else everything, key=lambda k: abs(value - k), default=None)
-        if value == 0 or (hit is not None and abs(value - hit) <= tolerance):
+        if hit is not None and abs(value - hit) <= tolerance:
             if hit in values:
                 cited.add(hit)
         else:
