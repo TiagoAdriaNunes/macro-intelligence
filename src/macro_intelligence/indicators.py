@@ -112,6 +112,16 @@ CATALOG: dict[str, Indicator] = {
 }
 
 
+def catalog_markdown() -> str:
+    """Catalog for people, by the countries it covers."""
+    brazil = [f"- {i.name}, {i.frequency}" for i in CATALOG.values() if i.country == "BRA"]
+    world = [f"- {i.name}, {i.frequency}" for i in CATALOG.values() if i.country is None]
+    return (
+        "**Brazil**\n\n" + "\n".join(brazil) + "\n\n"
+        "**Any country** (compare several at once)\n\n" + "\n".join(world)
+    )
+
+
 def catalog_text() -> str:
     """Catalog as bullet lines for the planner prompt."""
     lines = []
