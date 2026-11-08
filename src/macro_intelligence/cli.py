@@ -11,6 +11,8 @@ from .grounding import check_line
 from .llm import make_llm
 from .tracing import setup_tracing
 
+log = logging.getLogger(__name__)
+
 
 def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):  # Windows consoles default to a legacy code page
@@ -43,8 +45,9 @@ def main() -> None:
 
     try:
         result = build_graph(llm).invoke({"question": " ".join(args.question)})
-    except Exception as exc:
-        sys.exit(f"No model could answer: {exc}")
+    except Exception as exc:  # usually every model failed (rate limits, outages)
+        log.info("The agent failed", exc_info=True)  # the traceback, with --verbose
+        sys.exit(f"Could not answer: {exc}")
 
     if args.verbose and "plan" in result:
         print("Plan:", json.dumps(result["plan"]), end="\n\n")

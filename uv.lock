@@ -1826,9 +1826,11 @@ name = "macro-intelligence"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "langchain-core" },
     { name = "langchain-openrouter" },
     { name = "langgraph" },
     { name = "pandas" },
+    { name = "pydantic" },
     { name = "python-bcb" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -1848,9 +1850,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "langchain-core", specifier = ">=1.7.6" },
     { name = "langchain-openrouter", specifier = ">=0.2.9" },
     { name = "langgraph", specifier = ">=1.2.20" },
     { name = "pandas", specifier = ">=3.1.1" },
+    { name = "pydantic", specifier = ">=2.12.5" },
     { name = "python-bcb", specifier = ">=0.4.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "requests", specifier = ">=2.34.2" },

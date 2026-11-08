@@ -9,13 +9,14 @@ import logging
 import threading
 import time
 
+from langchain_core.runnables import RunnableWithFallbacks
 from shiny import App, ui
 from shinychat import Chat, page_chat
 
 # Absolute imports: `shiny run src/macro_intelligence/app.py` loads this file outside its package
-from macro_intelligence.graph import build_graph
+from macro_intelligence.graph import ChatModel, build_graph
 from macro_intelligence.llm import make_llm
-from macro_intelligence.stream import answer_stream
+from macro_intelligence.stream import AnswerStream, Replace
 from macro_intelligence.tracing import setup_tracing
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ setup_tracing()  # only when PHOENIX_TRACING=true
 
 TITLE = "macro-intelligence"
 MODELS_CACHE_SECONDS = 3600  # how long the chosen free models are reused before checking again
+RETRY_SECONDS = 60  # how soon to check again when no free model could be chosen
 
 SUGGESTIONS = [
     "How have Brazil's 12-month inflation and the Selic rate changed over the last 2 years?",
@@ -52,37 +54,42 @@ app_ui = page_chat(
 # The model chain (llm.make_llm) takes a few seconds to build: it checks OpenRouter's catalogue
 # and each free model's uptime. Shared by all sessions and rebuilt every MODELS_CACHE_SECONDS.
 _llm_lock = threading.Lock()
-_llm_cache: dict = {"llm": None, "built_at": 0.0}
+_llm_cache: dict = {"llm": None, "expires": 0.0}
 
 
-def cached_llm():
+def cached_llm() -> ChatModel:
     with _llm_lock:
-        if (
-            _llm_cache["llm"] is None
-            or time.monotonic() - _llm_cache["built_at"] > MODELS_CACHE_SECONDS
-        ):
-            _llm_cache["llm"] = make_llm()
-            _llm_cache["built_at"] = time.monotonic()
+        if _llm_cache["llm"] is None or time.monotonic() > _llm_cache["expires"]:
+            llm = make_llm()
+            # A single model is either OPENROUTER_MODEL (cheap to rebuild) or the fallback router
+            # alone, when no free model could be chosen (e.g. the catalogue didn't load): retry soon
+            ttl = MODELS_CACHE_SECONDS if isinstance(llm, RunnableWithFallbacks) else RETRY_SECONDS
+            _llm_cache.update(llm=llm, expires=time.monotonic() + ttl)
         return _llm_cache["llm"]
 
 
 def server(input, output, session):
     chat = Chat("chat", history=False)
+    turns: list[dict] = []  # earlier questions and answers, for follow-ups ("and Argentina?")
 
     @chat.on_user_submit
     async def _(user_input: str):
-        # Earlier turns for follow-up questions; the last message is the one just sent
-        history = [
-            {"role": m["role"], "content": m["content"]}
-            for m in chat.messages()[:-1]
-            if m["role"] in ("user", "assistant")
-        ]
         try:
             llm = await asyncio.to_thread(cached_llm)  # network calls: keep the app responsive
         except RuntimeError as exc:  # e.g. no OPENROUTER_API_KEY
             await chat.append_message(f"**Setup problem:** {exc}")
             return
-        await chat.append_message_stream(answer_stream(build_graph(llm), user_input, history))
+
+        reply = AnswerStream(build_graph(llm), user_input, list(turns))
+        async with chat.message_stream_context() as message:
+            async for chunk in reply:
+                if isinstance(chunk, Replace):
+                    await message.replace(chunk.text)
+                else:
+                    await message.append(chunk)
+        if reply.answer:
+            turns.append({"role": "user", "content": user_input})
+            turns.append({"role": "assistant", "content": reply.answer})
 
 
 app = App(app_ui, server)

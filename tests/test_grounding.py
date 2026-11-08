@@ -46,6 +46,11 @@ def test_calculations_between_cited_values_are_checked():
     assert check_answer("It rose 0.29 BRL from 5.2301 to 5.4212.", [usd])["unverified"] == ["0.29"]
 
 
+def test_a_zero_does_not_mark_a_data_value_as_quoted():
+    # 0.0 is nearest to 0.29 (a change in the data); 4.58 - 0.29 = 4.29 must not count as calculated
+    assert unverified("IPCA was 4.58%, monthly change 0.0%, up 4.29 p.p.") == ["4.29"]
+
+
 def test_numbers_from_the_question_count_as_data():
     assert (
         check_answer("No, it's below 5%.", [SUMMARY], ["Is inflation above 5%?"])["unverified"]

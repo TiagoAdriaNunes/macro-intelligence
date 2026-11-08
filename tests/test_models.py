@@ -97,3 +97,10 @@ def test_reasoning_effort_uses_nearest_supported_level():
     always = {"supported_efforts": ["high", "none"], "mandatory": True}
     assert models.model_reasoning(entry("a", reasoning=always)) == {"effort": "high"}
     assert models.nearest_effort("low", ["medium", "minimal"]) == "medium"  # tie: the higher one
+
+
+def test_is_free_accepts_any_zero_price():
+    assert models.is_free({"pricing": {"prompt": "0.0", "completion": "0"}})
+    assert not models.is_free({"pricing": {"prompt": "0.000001", "completion": "0"}})
+    assert not models.is_free({"pricing": {"prompt": "-1", "completion": "-1"}})  # variable price
+    assert not models.is_free({})

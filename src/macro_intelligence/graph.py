@@ -9,6 +9,7 @@ figure in the answer against the fetched data) are plain Python.
 
 import json
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from typing import Literal, NotRequired, TypedDict
 
@@ -87,13 +88,13 @@ ANALYST_PROMPT = """You are a macroeconomic research assistant. Answer the lates
 - A change in a rate given in % is in percentage points (p.p.), not percent.
 - Be concise. Use Markdown: short paragraphs, bullet lists, a table for comparisons."""
 
-HISTORY_TURNS = 6  # earlier messages passed to the model
+HISTORY_MESSAGES = 6  # earlier messages passed to the model
 HISTORY_CHARS = 2000  # per message; long answers are cut
 
 
 def _history_messages(state: State) -> list[BaseMessage]:
     messages: list[BaseMessage] = []
-    for turn in state.get("history", [])[-HISTORY_TURNS:]:
+    for turn in state.get("history", [])[-HISTORY_MESSAGES:]:
         content = str(turn.get("content", ""))[:HISTORY_CHARS]
         if turn.get("role") == "user":
             messages.append(HumanMessage(content))
@@ -103,6 +104,26 @@ def _history_messages(state: State) -> list[BaseMessage]:
 
 
 Fetcher = Callable[[Indicator, list[str], date], list[dict]]
+
+
+def _fetch_all(
+    fetch: Fetcher, keys: list[str], countries: list[str], start: date
+) -> tuple[list[dict], list[str]]:
+    """Fetch the indicators at the same time, since a World Bank request can take a minute.
+    Returns the datasets, and an error line for each indicator that failed."""
+
+    def fetch_one(key: str) -> tuple[list[dict], str | None]:
+        ind = CATALOG[key]
+        try:
+            return fetch(ind, countries, start), None
+        except Exception as exc:  # one failing source shouldn't sink the whole answer
+            return [], f"{ind.name} ({ind.source} {ind.code}): {exc}"
+
+    with ThreadPoolExecutor() as pool:
+        results = list(pool.map(fetch_one, keys))
+    datasets = [dataset for found, _ in results for dataset in found]
+    errors = [error for _, error in results if error]
+    return datasets, errors
 
 
 def _years_ago(today: date, years: int) -> date:
@@ -168,13 +189,7 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
     def fetch_data(state: State) -> dict:
         p = state["plan"]
         start = _years_ago(date.today(), p["years_back"])
-        datasets, errors = [], []
-        for key in p["indicators"]:
-            ind = CATALOG[key]
-            try:
-                datasets.extend(fetch(ind, p["countries"], start))
-            except Exception as exc:  # one failing source shouldn't sink the whole answer
-                errors.append(f"{ind.name} ({ind.source} {ind.code}): {exc}")
+        datasets, errors = _fetch_all(fetch, p["indicators"], p["countries"], start)
         return {"datasets": datasets, "errors": errors}
 
     def answer(state: State) -> dict:
