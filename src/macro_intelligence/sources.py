@@ -23,9 +23,14 @@ import pandas as pd
 import wbgapi as wb
 from bcb import sgs
 
-from .indicators import SOURCE_NAMES, Indicator
+from .indicators import MONTH_ENDS, SOURCE_NAMES, Indicator
 
 REQUEST_TIMEOUT = 30  # seconds
+
+# pandas warns that it guesses the format of BCB's dd/mm/yyyy dates; python-bcb parses them
+# correctly. Set once here: changing filters per request isn't thread-safe, and the graph
+# fetches indicators in parallel.
+warnings.filterwarnings("ignore", "Could not infer format", UserWarning, r"bcb\.sgs")
 
 # The World Bank API sometimes takes about a minute to respond, so give it more room.
 # wbgapi passes get_options straight to requests.get.
@@ -66,9 +71,7 @@ def _dates(series: pd.Series) -> pd.DatetimeIndex:
 
 def _fetch_bcb(ind: Indicator, start: date) -> dict:
     try:
-        with warnings.catch_warnings():  # BCB's dd/mm/yyyy dates parse correctly anyway
-            warnings.filterwarnings("ignore", "Could not infer format", UserWarning)
-            df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
+        df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
     except ValueError as exc:  # python-bcb can't parse the HTML page BCB sends on a rejection
         raise RuntimeError("BCB sent an error page instead of data") from exc
     assert isinstance(df, pd.DataFrame)  # sgs.get returns a list only with multi=False
@@ -81,7 +84,7 @@ def _fetch_bcb(ind: Indicator, start: date) -> dict:
     if ind.frequency == "daily":
         # Keep the last observation of each month so the LLM prompt stays small.
         series = series.groupby(_dates(series).to_period("M")).tail(1)
-        frequency = "monthly (last daily value of each month)"
+        frequency = MONTH_ENDS
 
     observations = [
         {"date": ts.date().isoformat(), "value": float(value)}

@@ -1,5 +1,7 @@
 """Graph tests with a fake LLM and fake data: no network, no API key."""
 
+import subprocess
+import sys
 from datetime import date
 
 import pandas as pd
@@ -234,3 +236,19 @@ def test_an_answer_sent_twice_is_kept_once():
     )
 
     assert result["answer"] == answer
+
+
+def test_bcb_date_warning_is_hidden_by_a_filter_set_once():
+    # In a fresh process, since pytest resets warning filters: importing sources sets the
+    # filter once (changing filters per request isn't thread-safe, and fetches run in parallel)
+    code = "; ".join(
+        [
+            "import warnings, macro_intelligence.sources",
+            "m = 'Could not infer format, so each element will be parsed individually'",
+            "warnings.warn_explicit(m, UserWarning, 'bcb/sgs/__init__.py', 400, module='bcb.sgs')",
+            "warnings.warn_explicit(m, UserWarning, 'other.py', 1, module='other')",
+        ]
+    )
+    stderr = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stderr
+    assert "bcb/sgs" not in stderr  # hidden
+    assert "other.py" in stderr  # other warnings still show

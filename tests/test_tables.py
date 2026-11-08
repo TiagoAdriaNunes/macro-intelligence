@@ -4,10 +4,11 @@ from test_analysis import USD_BRL
 from test_graph import FakeLLM, fake_dataset
 from test_stream import show
 
+from macro_intelligence import stream
 from macro_intelligence.analysis import summarize
 from macro_intelligence.graph import Plan, build_graph
-from macro_intelligence.indicators import CATALOG
-from macro_intelligence.stream import AnswerStream
+from macro_intelligence.indicators import CATALOG, MONTH_ENDS
+from macro_intelligence.stream import FAILED, AnswerStream
 from macro_intelligence.tables import yearly_frame, yearly_table_html, yearly_table_text
 
 SUMMARY = summarize(USD_BRL)
@@ -75,3 +76,25 @@ def test_html_follows_the_chat_theme():
     assert rule in first
     assert first.index(rule) > first.index(f"#{table_id} .gt_table {{")  # after GT's own CSS
     assert "var(--bs-body-color)" in first and "var(--bs-border-color)" in first
+
+
+def test_a_failing_table_leaves_the_sources_and_data_check(monkeypatch):
+    def broken(summary):
+        raise ValueError("rendering failed")
+
+    monkeypatch.setattr(stream, "yearly_table_html", broken)
+    plan = Plan(indicators=["br_selic_target"], yearly_table=True)
+
+    text = show(AnswerStream(graph_with_plan(plan), "Selic by year?"))
+
+    assert "**Sources**" in text and "Data check" in text
+    assert FAILED not in text
+
+
+def test_average_of_a_daily_series_is_labelled_as_over_month_ends():
+    assert SUMMARY["frequency"] == MONTH_ENDS  # USD/BRL, a daily series reduced to month-ends
+    assert "Average of month-ends" in yearly_table_html(SUMMARY)
+    assert "Average of month-ends" in yearly_table_text(SUMMARY)
+
+    monthly = summarize(fake_dataset(CATALOG["br_ipca_12m"]))  # two months of 2026
+    assert "Year average" in yearly_table_text(monthly)

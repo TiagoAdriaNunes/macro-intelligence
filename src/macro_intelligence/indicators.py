@@ -10,6 +10,9 @@ from typing import Literal
 Source = Literal["bcb", "worldbank"]
 Frequency = Literal["daily", "monthly", "annual"]
 
+# Frequency of a daily series once sources.py keeps only the last value of each month
+MONTH_ENDS = "monthly (last daily value of each month)"
+
 SOURCE_NAMES: dict[Source, str] = {
     "bcb": "Banco Central do Brasil (SGS)",
     "worldbank": "World Bank (World Development Indicators)",

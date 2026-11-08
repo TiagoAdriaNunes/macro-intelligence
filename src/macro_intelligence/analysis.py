@@ -49,8 +49,9 @@ def _change_starts(s: pd.Series) -> dict[str, str]:
 
 
 def _yearly(s: pd.Series, is_rate: bool) -> list[dict]:
-    """One row per calendar year: its last value (the latest, for the current year), its mean
-    for monthly or daily data, and the change from the previous year's last value."""
+    """One row per calendar year: its last value (the latest, for the current year), the mean
+    of its values for monthly data (of its month-end values, for a daily series reduced by
+    sources.py), and the change from the previous year's last value."""
     by_year: dict[str, list[tuple[str, float]]] = {}
     for date, value in s.items():  # dates are sorted
         by_year.setdefault(str(date)[:4], []).append((str(date), float(value)))

@@ -8,6 +8,8 @@ from uuid import uuid4
 import pandas as pd
 from great_tables import GT
 
+from .indicators import MONTH_ENDS
+
 COLUMNS = {
     "year": "Year",
     "date": "Date",
@@ -34,6 +36,15 @@ def yearly_frame(summary: dict) -> pd.DataFrame:
     ]
     frame = pd.DataFrame(rows, columns=list(COLUMNS))
     return frame.dropna(axis="columns", how="all")  # e.g. no % change for rates
+
+
+def _labels(summary: dict, columns: pd.Index) -> dict[str, str]:
+    """Column headings. A daily series is reduced to month-end values (sources.py), so its
+    yearly average is over those, not over every day."""
+    labels = {c: COLUMNS[c] for c in columns}
+    if "mean" in labels and summary.get("frequency") == MONTH_ENDS:
+        labels["mean"] = "Average of month-ends"
+    return labels
 
 
 def _decimals(summary: dict, column: str) -> int:
@@ -63,7 +74,7 @@ def yearly_table_html(summary: dict) -> str:
             title=f"{summary['name']} ({summary['country']})",
             subtitle=f"{summary['units']}; changes in {change_units}",
         )
-        .cols_label(cases={c: COLUMNS[c] for c in frame.columns})
+        .cols_label(cases={c: label for c, label in _labels(summary, frame.columns).items()})
     )
     for column in frame.columns.intersection(["value", "mean", "change", "pct_change"]):
         table = table.fmt_number(
@@ -95,7 +106,7 @@ def yearly_table_text(summary: dict) -> str:
         sign = "+" if column in ("change", "pct_change") else ""
         return f"{value:{sign}.{_decimals(summary, column)}f}"
 
-    header = [COLUMNS[c] for c in frame.columns]
+    header = list(_labels(summary, frame.columns).values())
     body = [
         [cell(c, v) for c, v in zip(frame.columns, row, strict=True)]
         for row in frame.itertuples(index=False)
