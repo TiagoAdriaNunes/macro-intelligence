@@ -1,7 +1,7 @@
 [project]
 name = "macro-intelligence"
 version = "0.1.0"
-description = "AI-powered macroeconomic research assistant built with Python, LangGraph, and OpenRouter."
+description = "AI-powered macroeconomic research assistant built with Python, Shiny, LangGraph, and OpenRouter."
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Tiago Adria Nunes" }]

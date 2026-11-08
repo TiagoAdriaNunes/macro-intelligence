@@ -1,6 +1,6 @@
 # macro-intelligence
 
-AI research assistant for macroeconomic questions, built with Python, LangGraph and OpenRouter.
+AI research assistant for macroeconomic questions, built with Python, Shiny, LangGraph and OpenRouter.
 
 Ask a question in plain language. The agent picks the indicators it needs, fetches them from official sources (Banco Central do Brasil and the World Bank), and has an LLM explain the figures using only that data, with sources cited. Answers written from data end with a check that flags any figure not found in it.
 

@@ -162,8 +162,16 @@ class AnswerStream:
             yield footer(self._datasets, self._model, update.get("check"))
 
     def _tables(self) -> Iterator[Table]:
-        """A table by year for each series with more than one year, when the plan asks."""
-        if self._yearly_table:
-            for summary in self._summaries:
-                if len(summary.get("yearly", [])) > 1:
-                    yield Table(yearly_table_html(summary))
+        """A table by year for each series with more than one year, when the plan asks.
+        A table that fails is left out, so the sources and data check still follow."""
+        if not self._yearly_table:
+            return
+        for summary in self._summaries:
+            if len(summary.get("yearly", [])) < 2:
+                continue
+            try:
+                html = yearly_table_html(summary)
+            except Exception:
+                log.exception("Table by year failed for %s", summary.get("name"))
+                continue
+            yield Table(html)
