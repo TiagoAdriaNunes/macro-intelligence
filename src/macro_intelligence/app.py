@@ -5,23 +5,23 @@ while developing.
 """
 
 import asyncio
-import logging
 import os
 import threading
 import time
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
 from langchain_core.runnables import RunnableWithFallbacks
+from loguru import logger
 from shiny import App, reactive, ui
 from shinychat import Chat, page_chat
 
 # Absolute imports: `shiny run src/macro_intelligence/app.py` loads this file outside its package
 from macro_intelligence.graph import ChatModel, Turn, build_graph
 from macro_intelligence.llm import make_llm
+from macro_intelligence.logs import setup_logging
 from macro_intelligence.stream import AnswerStream, send
 from macro_intelligence.tracing import setup_tracing, start_phoenix
-
-log = logging.getLogger(__name__)
 
 TITLE = "macro-intelligence"
 MODELS_CACHE_SECONDS = 3600  # how long the chosen free models are reused before checking again
@@ -106,7 +106,7 @@ def server(input, output, session):
     @reactive.effect
     def _report_errors():  # the agent's own failures are shown in the reply; this is the rest
         if error := respond.error():
-            log.error("The reply failed", exc_info=error)
+            logger.opt(exception=error).error("The reply failed")
             ui.notification_show(f"The reply failed: {error}", type="error")
 
 
@@ -118,9 +118,8 @@ def main() -> None:
     PORT and LOG_LEVEL)."""
     from shiny import run_app
 
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    load_dotenv()  # LOG_LEVEL may be set in .env
+    setup_logging(os.getenv("LOG_LEVEL", "INFO"))
     start_phoenix()  # only when PHOENIX_TRACING=true and it isn't running; stops with the app
     host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))

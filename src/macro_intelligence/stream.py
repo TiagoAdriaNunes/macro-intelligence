@@ -8,13 +8,13 @@ When a model fails mid-answer, the next one starts over: its text replaces the p
 so the reply always shows the answer the data check verified.
 """
 
-import logging
 from collections.abc import AsyncIterable, AsyncIterator, Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.state import CompiledStateGraph
+from loguru import logger
 from shiny.ui import HTML
 
 from .analysis import Summary, source_lines
@@ -23,8 +23,6 @@ from .grounding import Check, check_line
 from .indicators import CATALOG
 from .sources import Dataset
 from .tables import yearly_table_html
-
-log = logging.getLogger(__name__)
 
 FAILED = "**No model could answer right now.** The free models may be busy; please try again in a minute."
 
@@ -125,7 +123,7 @@ class AnswerStream:
                         for chunk in self._on_update(node, update or {}):
                             yield chunk
         except Exception:
-            log.exception("Agent failed for question %r", self.question)
+            logger.exception("Agent failed for question {!r}", self.question)
             if self._streamed and self.answer is None:  # drop a failed model's partial text
                 yield Replace(self._lookup + FAILED)
             else:
@@ -174,6 +172,6 @@ class AnswerStream:
             try:
                 html = yearly_table_html(summary)
             except Exception:
-                log.exception("Table by year failed for %s", summary.get("name"))
+                logger.exception("Table by year failed for {}", summary.get("name"))
                 continue
             yield Table(html)

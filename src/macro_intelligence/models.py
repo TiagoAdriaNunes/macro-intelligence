@@ -8,12 +8,10 @@
    often rate-limited models last.
 """
 
-import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 MODELS_URL = "https://openrouter.ai/api/v1/models"  # public, no key needed
 USER_MODELS_URL = "https://openrouter.ai/api/v1/models/user"  # needs the key
@@ -84,7 +82,7 @@ def usable_ids(api_key: str) -> set[str] | None:
         data = _get_json(USER_MODELS_URL, headers={"Authorization": f"Bearer {api_key}"})["data"]
         return {m["id"] for m in data}
     except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
-        log.warning("Could not fetch the models this account can use: %s", exc)
+        logger.warning("Could not fetch the models this account can use: {}", exc)
         return None
 
 
@@ -93,7 +91,7 @@ def uptime_30m(model_id: str) -> float | None:
     try:
         endpoints = _get_json(f"{MODELS_URL}/{model_id}/endpoints")["data"]["endpoints"]
     except (requests.RequestException, KeyError, TypeError, ValueError) as exc:
-        log.warning("Could not fetch the uptime of %s: %s", model_id, exc)
+        logger.warning("Could not fetch the uptime of {}: {}", model_id, exc)
         return None
     values = [
         e["uptime_last_30m"]
@@ -112,14 +110,14 @@ def keep_reliable(models: list[dict]) -> list[dict]:
         uptime = dict(zip(ids, pool.map(uptime_30m, ids), strict=True))
     reliable = [m for m in models if (uptime[m["id"]] or 0) >= MIN_UPTIME_30M]
     if not reliable:
-        log.warning(
-            "No free model has %s%% uptime in the last 30 minutes; keeping all", MIN_UPTIME_30M
+        logger.warning(
+            "No free model has {}% uptime in the last 30 minutes; keeping all", MIN_UPTIME_30M
         )
         return models
     dropped = sorted(set(ids) - {m["id"] for m in reliable})
     if dropped:
-        log.info(
-            "Left out for uptime below %s%% (or unknown): %s", MIN_UPTIME_30M, ", ".join(dropped)
+        logger.info(
+            "Left out for uptime below {}% (or unknown): {}", MIN_UPTIME_30M, ", ".join(dropped)
         )
     return reliable
 
@@ -146,7 +144,7 @@ def free_tool_models(api_key: str | None = None) -> list[dict]:
     if usable is not None:
         dropped = sorted(m["id"] for m in models if m["id"] not in usable)
         if dropped:
-            log.info("Left out as unusable with this account's settings: %s", ", ".join(dropped))
+            logger.info("Left out as unusable with this account's settings: {}", ", ".join(dropped))
         models = [m for m in models if m["id"] in usable]
     return sorted(keep_reliable(models), key=_rank_key)
 
