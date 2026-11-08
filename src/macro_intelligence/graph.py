@@ -44,8 +44,8 @@ class Plan(BaseModel):
     years_back: int = Field(5, description=f"Years of history needed, 1 to {MAX_YEARS_BACK}.")
     about_catalog: bool = Field(
         False,
-        description="True when the user asks what data or questions this assistant covers, "
-        "rather than for data itself.",
+        description="True only when the user asks in general what data or questions this "
+        "assistant covers, with no country or topic to look up.",
     )
     yearly_table: bool = Field(
         False,
@@ -85,7 +85,8 @@ Pick the indicators needed to answer the user's latest question, using only thes
 
 Rules:
 - Pick only what the question needs. Pick nothing if the catalog can't answer it.
-- If the user asks what you can answer or which data you have, set about_catalog and pick nothing.
+- Set about_catalog (and pick nothing) only for general questions about what you can answer, e.g. "what can I ask?" or "which data do you have?".
+- When the question names a country, look its data up instead, even if it says "indicators": "indicators for France" means every "any country" indicator for FRA.
 - Use the earlier conversation to resolve follow-ups (e.g. "and Argentina?" repeats the last question for Argentina).
 - "Brazil only" indicators always return Brazilian data.
 - For "any country" indicators, list every country the question mentions as ISO alpha-3 codes.
