@@ -16,6 +16,7 @@ from itertools import combinations
 FIGURE = re.compile(r"(?<![\w.,])\d[\d.,]*\d(?![\w])|(?<![\w.,])\d(?![\w.,]?\d)")
 DATE = re.compile(r"\b\d{4}-\d{2}(?:-\d{2})?\b")  # observation dates, not figures
 SMALL_INTEGER = 10  # bare integers below this ("2 years", list numbers) aren't checked unless a %
+YEAR = re.compile(r"(19|20)\d\d")  # a bare year ("no data before 2015") isn't checked either
 
 
 def _parse(token: str) -> tuple[float, int]:
@@ -43,7 +44,7 @@ def figures(text: str) -> list[tuple[str, float, int, bool]]:
         written = match.group()
         value, decimals = _parse(written)
         percent = text[match.end() : match.end() + 2].lstrip().startswith("%")
-        if decimals == 0 and value < SMALL_INTEGER and not percent:
+        if not percent and ((decimals == 0 and value < SMALL_INTEGER) or YEAR.fullmatch(written)):
             continue
         found.append((written, value, decimals, percent))
     return found

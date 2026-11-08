@@ -16,6 +16,7 @@ stays serializable):
     }
 """
 
+import warnings
 from datetime import UTC, date, datetime
 
 import pandas as pd
@@ -65,7 +66,9 @@ def _dates(series: pd.Series) -> pd.DatetimeIndex:
 
 def _fetch_bcb(ind: Indicator, start: date) -> dict:
     try:
-        df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
+        with warnings.catch_warnings():  # BCB's dd/mm/yyyy dates parse correctly anyway
+            warnings.filterwarnings("ignore", "Could not infer format", UserWarning)
+            df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
     except ValueError as exc:  # python-bcb can't parse the HTML page BCB sends on a rejection
         raise RuntimeError("BCB sent an error page instead of data") from exc
     assert isinstance(df, pd.DataFrame)  # sgs.get returns a list only with multi=False

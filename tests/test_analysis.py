@@ -76,3 +76,30 @@ def test_rates_change_in_points_and_annual_series_skip_monthly_windows():
         "from": {"date": "2024", "value": 3.4},
         "change": -1.1,
     }
+
+
+def test_yearly_rows_for_a_level_series():
+    yearly = summarize(USD_BRL)["yearly"]
+
+    assert [row["year"] for row in yearly] == ["2025", "2026"]
+    assert yearly[0]["end"] == {"date": "2025-12-31", "value": 5.5024}
+    assert "change" not in yearly[0]  # no earlier year to compare with
+    assert yearly[1] == {
+        "year": "2026",
+        "end": {"date": "2026-11-06", "value": 5.5013},  # the latest, for the current year
+        "mean": 5.1985,
+        "change": -0.0011,
+        "pct_change": -0.02,
+    }
+
+
+def test_yearly_rows_for_an_annual_rate():
+    gdp = {
+        **USD_BRL,
+        "units": "% per year, constant prices",
+        "observations": [{"date": "2024", "value": 3.4}, {"date": "2025", "value": 2.3}],
+    }
+    assert summarize(gdp)["yearly"] == [
+        {"year": "2024", "end": {"date": "2024", "value": 3.4}},
+        {"year": "2025", "end": {"date": "2025", "value": 2.3}, "change": -1.1},
+    ]
