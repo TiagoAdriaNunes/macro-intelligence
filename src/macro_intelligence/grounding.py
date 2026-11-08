@@ -8,6 +8,7 @@ visible in the reply.
 """
 
 import re
+from collections.abc import Sequence
 from datetime import date
 from itertools import combinations
 
@@ -92,7 +93,7 @@ def _calculations(cited: set[float]) -> set[float]:
     return results
 
 
-def check_answer(answer: str, summaries: list[dict], texts: list[str] = ()) -> dict:
+def check_answer(answer: str, summaries: list[dict], texts: Sequence[str] = ()) -> dict:
     """Look up each figure in `answer` among the numbers in `summaries` and `texts` (the question).
 
     Returns {"figures": how many were checked, "calculated": how many are a difference or percent

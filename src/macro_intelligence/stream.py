@@ -50,12 +50,14 @@ async def answer_stream(
         async for mode, payload in graph.astream(
             {"question": question, "history": history or []}, stream_mode=["updates", "messages"]
         ):
-            if mode == "messages":
+            if mode == "messages" and isinstance(payload, tuple):
                 chunk, meta = payload
                 text = getattr(chunk, "text", "")
                 if meta.get("langgraph_node") == "answer" and isinstance(text, str) and text:
                     streamed = True
                     yield text
+                continue
+            if not isinstance(payload, dict):  # "updates": {node: its state update}
                 continue
 
             for node, update in payload.items():

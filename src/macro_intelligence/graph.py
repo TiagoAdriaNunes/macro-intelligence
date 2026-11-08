@@ -12,7 +12,8 @@ from collections.abc import Callable
 from datetime import date
 from typing import Literal, NotRequired, TypedDict
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable, RunnableLambda, RunnableWithFallbacks
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field, field_validator
@@ -90,8 +91,8 @@ HISTORY_TURNS = 6  # earlier messages passed to the model
 HISTORY_CHARS = 2000  # per message; long answers are cut
 
 
-def _history_messages(state: "State") -> list:
-    messages = []
+def _history_messages(state: State) -> list[BaseMessage]:
+    messages: list[BaseMessage] = []
     for turn in state.get("history", [])[-HISTORY_TURNS:]:
         content = str(turn.get("content", ""))[:HISTORY_CHARS]
         if turn.get("role") == "user":
@@ -111,15 +112,25 @@ def _years_ago(today: date, years: int) -> date:
         return today.replace(year=today.year - years, day=28)
 
 
-def _each_model(llm, build: Callable[[Runnable], Runnable]) -> Runnable:
+ChatModel = BaseChatModel | RunnableWithFallbacks  # one model, or a chain built by llm.py
+
+
+def _chat_model(runnable: Runnable) -> BaseChatModel:
+    if not isinstance(runnable, BaseChatModel):
+        raise TypeError(f"Expected a chat model, got {type(runnable).__name__}")
+    return runnable
+
+
+def _each_model(llm: ChatModel, build: Callable[[BaseChatModel], Runnable]) -> Runnable:
     """Apply `build` to every model of a fallback chain (see llm.py), so a bad reply moves on
     to the next model too, not only an error."""
-    if isinstance(llm, RunnableWithFallbacks):
-        return build(llm.runnable).with_fallbacks([build(m) for m in llm.fallbacks])
-    return build(llm)
+    if not isinstance(llm, RunnableWithFallbacks):
+        return build(llm)
+    first, *rest = (build(_chat_model(m)) for m in (llm.runnable, *llm.fallbacks))
+    return first.with_fallbacks(rest)
 
 
-def _require_plan(result) -> Plan:
+def _require_plan(result: object) -> Plan:
     if not isinstance(result, Plan):  # the model answered without calling the tool
         raise ValueError("The model returned no plan.")
     return result
@@ -131,7 +142,7 @@ def _require_text(message: AIMessage) -> AIMessage:
     return message
 
 
-def build_graph(llm, fetch: Fetcher = fetch_indicator):
+def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
     """Compile the agent graph. `llm` is a LangChain chat model with tool calling, or a chain
     of them built with `with_fallbacks`."""
     planner = _each_model(
@@ -199,7 +210,8 @@ def build_graph(llm, fetch: Fetcher = fetch_indicator):
             + available
         }
 
-    builder = StateGraph(State)
+    # LangGraph's type hints reject any TypedDict here, though it's the documented way
+    builder = StateGraph(State)  # pyrefly: ignore[bad-specialization]
     builder.add_node("plan", plan)
     builder.add_node("fetch_data", fetch_data)
     builder.add_node("answer", answer)

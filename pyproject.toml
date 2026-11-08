@@ -37,14 +37,32 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-# pycodestyle, pyflakes, import sorting, pyupgrade, bugbear, simplify
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # Pyflakes
+    "I",    # isort (import sorting)
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+]
 ignore = ["E501"]  # the formatter wraps code; long strings and comments are fine
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyrefly]
+# Pyrefly's preset for a project without one is "basic", which hides most type errors
+preset = "default"
+project-includes = ["src"]  # tests aren't type checked
+# Use the project's .venv, even when the editor has another Python selected
+python-interpreter-find-command = ["uv", "python", "find"]
 
 [dependency-groups]
 dev = [
     "arize-phoenix>=21.0.0",
     "openinference-instrumentation-langchain>=0.1.82",
+    "pyrefly>=1.4.1",
     "pytest>=9.2.0",
     "ruff>=0.17.4",
 ]
