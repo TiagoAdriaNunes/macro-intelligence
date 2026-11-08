@@ -143,7 +143,7 @@ def test_fallback_model_takes_over_after_errors_and_bad_replies():
         {"question": "IPCA?"}
     )
 
-    assert result["plan"]["indicators"] == ["br_ipca_12m"]
+    assert result["plan"].indicators == ["br_ipca_12m"]
     assert result["model"] == "good/model"
     assert len(working.prompts) == 1
 

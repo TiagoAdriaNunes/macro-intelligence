@@ -11,12 +11,21 @@ import re
 from collections.abc import Sequence
 from datetime import date
 from itertools import combinations
+from typing import TypedDict
+
+from .analysis import Summary
 
 # Numbers as written in an answer: 4.58, 1,234.5, 4,58 (decimal comma), 1.234,56
 FIGURE = re.compile(r"(?<![\w.,])\d[\d.,]*\d(?![\w])|(?<![\w.,])\d(?![\w.,]?\d)")
 DATE = re.compile(r"\b\d{4}-\d{2}(?:-\d{2})?\b")  # observation dates, not figures
 SMALL_INTEGER = 10  # bare integers below this ("2 years", list numbers) aren't checked unless a %
 YEAR = re.compile(r"(19|20)\d\d")  # a bare year ("no data before 2015") isn't checked either
+
+
+class Check(TypedDict):
+    figures: int  # how many figures were checked
+    calculated: int  # how many are a difference or % change between two values the answer cites
+    unverified: list[str]  # the rest, as written
 
 
 def _parse(token: str) -> tuple[float, int]:
@@ -54,7 +63,7 @@ def _numbers_in(text: str) -> set[float]:
     return {float(n) for n in re.findall(r"\d+(?:\.\d+)?", text)}
 
 
-def _known_numbers(summaries: list[dict], texts: list[str]) -> tuple[set[float], set[float]]:
+def _known_numbers(summaries: list[Summary], texts: list[str]) -> tuple[set[float], set[float]]:
     """Numbers in the data given to the model, as (values, labels). Values are the series' figures
     and numbers in the question; labels are dates, years, codes, names and counts."""
     values: set[float] = set()
@@ -94,11 +103,8 @@ def _calculations(cited: set[float]) -> set[float]:
     return results
 
 
-def check_answer(answer: str, summaries: list[dict], texts: Sequence[str] = ()) -> dict:
+def check_answer(answer: str, summaries: list[Summary], texts: Sequence[str] = ()) -> Check:
     """Look up each figure in `answer` among the numbers in `summaries` and `texts` (the question).
-
-    Returns {"figures": how many were checked, "calculated": how many are a difference or percent
-    change between two data values the answer also cites, "unverified": the rest, as written}.
     A figure with % must match a value; other figures may also match a date, code or count.
     """
     values, labels = _known_numbers(summaries, list(texts))
@@ -127,7 +133,7 @@ def check_answer(answer: str, summaries: list[dict], texts: Sequence[str] = ()) 
     return {"figures": len(checked), "calculated": calculated, "unverified": unverified}
 
 
-def check_line(check: dict | None) -> str:
+def check_line(check: Check | None) -> str:
     """One line for the reply, or "" when there was nothing to check."""
     if not check or not check["figures"]:
         return ""

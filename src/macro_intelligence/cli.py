@@ -1,12 +1,11 @@
 """Command line entry point: `macro-intelligence "your question"`."""
 
 import argparse
-import json
 import logging
 import sys
 
 from .analysis import source_lines
-from .graph import build_graph
+from .graph import Plan, build_graph
 from .grounding import check_line
 from .llm import make_llm
 from .tables import yearly_table_text
@@ -50,10 +49,11 @@ def main() -> None:
         log.info("The agent failed", exc_info=True)  # the traceback, with --verbose
         sys.exit(f"Could not answer: {exc}")
 
-    if args.verbose and "plan" in result:
-        print("Plan:", json.dumps(result["plan"]), end="\n\n")
+    plan: Plan | None = result.get("plan")
+    if args.verbose and plan:
+        print("Plan:", plan.model_dump_json(), end="\n\n")
     print(result["answer"])
-    if result.get("plan", {}).get("yearly_table"):
+    if plan and plan.yearly_table:
         for summary in result.get("summaries", []):
             if len(summary.get("yearly", [])) > 1:
                 print(f"\n{yearly_table_text(summary)}")
