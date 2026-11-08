@@ -91,6 +91,8 @@ ANALYST_PROMPT = """You are a macroeconomic research assistant. Answer the lates
 - Never use outside knowledge for figures. If the data doesn't cover something, say so.
 - Give numbers with their units and observation date, rounded sensibly (usually 1-2 decimals; keep more for a small change, e.g. -0.0011, rather than rounding it to a different number).
 - For changes, quote the precomputed `changes` (since_previous, year_to_date, over_12_months, over_period, since_min, since_max) instead of calculating. If you must calculate, also quote the two values you used.
+- When the question spans several years or asks how something evolved, include a table with one row per year from `yearly` (year-end value, change from the previous year).
+- Quote only the figures the question needs; don't list every statistic provided.
 - Name the source and series code for each figure.
 - Don't treat different frequencies or units as comparable (e.g. monthly vs. annual inflation).
 - A change in a rate given in % is in percentage points (p.p.), not percent.
@@ -163,6 +165,14 @@ def _require_plan(result: object) -> Plan:
     if not isinstance(result, Plan):  # the model answered without calling the tool
         raise ValueError("The model returned no plan.")
     return result
+
+
+def _drop_repeat(text: str) -> str:
+    """The text once, when a provider sent the whole answer twice in a row."""
+    stripped = text.strip()
+    half = len(stripped) // 2
+    first, second = stripped[:half].strip(), stripped[half:].strip()
+    return first if first and first == second else text
 
 
 def _require_text(message: AIMessage) -> AIMessage:
@@ -239,7 +249,7 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
         messages = [SystemMessage(ANALYST_PROMPT), *_history_messages(state), HumanMessage(message)]
         response = writer.invoke(messages)
         return {
-            "answer": response.text,
+            "answer": _drop_repeat(response.text),
             "model": response.response_metadata.get("model_name", ""),
             "summaries": summaries,
         }

@@ -90,3 +90,9 @@ def test_graph_skips_verify_when_no_model_answered():
         {"question": "IPCA?"}
     )
     assert "check" not in result
+
+
+def test_bare_years_are_not_checked_but_amounts_are():
+    assert unverified("No data for 2000-2015; it was 4.58% in 2026.") == []
+    assert unverified("Reserves reached 2,015 billion.") == ["2,015"]  # an amount, not a year
+    assert unverified("It rose 2015%.") == ["2015"]  # a percentage is always checked

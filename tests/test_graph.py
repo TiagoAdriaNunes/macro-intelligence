@@ -223,3 +223,14 @@ def test_bcb_error_page_gives_a_clear_error(monkeypatch):
     monkeypatch.setattr(sources.sgs, "get", rejected)
     with pytest.raises(RuntimeError, match="BCB sent an error page"):
         sources.fetch_indicator(CATALOG["br_ipca_12m"], ["BRA"], date(2026, 1, 1))
+
+
+def test_an_answer_sent_twice_is_kept_once():
+    answer = "Selic is 13.75%.\n\nIt fell 1.25 p.p. this year."
+    llm = FakeLLM(plan=Plan(indicators=["br_selic_target"]), answer=answer + answer)
+
+    result = build_graph(llm, fetch=lambda ind, c, s: [fake_dataset(ind)]).invoke(
+        {"question": "Selic?"}
+    )
+
+    assert result["answer"] == answer

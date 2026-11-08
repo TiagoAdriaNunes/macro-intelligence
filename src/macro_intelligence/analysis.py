@@ -2,8 +2,8 @@
 
 Numbers are computed here with pandas, not by the LLM. The LLM only explains them: each
 summary includes the changes questions usually ask about (since the previous observation,
-year to date, over 12 months, over the whole period, since the low and since the high), so
-the model rarely has to calculate.
+year to date, over 12 months, over the whole period, since the low and since the high) and
+a row per year, so the model rarely has to calculate.
 """
 
 import pandas as pd
@@ -48,6 +48,28 @@ def _change_starts(s: pd.Series) -> dict[str, str]:
     return {name: start for name, start in starts.items() if start != latest}
 
 
+def _yearly(s: pd.Series, is_rate: bool) -> list[dict]:
+    """One row per calendar year: its last value (the latest, for the current year), its mean
+    for monthly or daily data, and the change from the previous year's last value."""
+    by_year: dict[str, list[tuple[str, float]]] = {}
+    for date, value in s.items():  # dates are sorted
+        by_year.setdefault(str(date)[:4], []).append((str(date), float(value)))
+    rows: list[dict] = []
+    previous_end: float | None = None
+    for year, points in by_year.items():
+        end_date, end = points[-1]
+        row: dict = {"year": year, "end": {"date": end_date, "value": _num(end)}}
+        if len(points) > 1:
+            row["mean"] = _num(sum(value for _, value in points) / len(points))
+        if previous_end is not None:
+            row["change"] = _num(end - previous_end)
+            if not is_rate and previous_end != 0:
+                row["pct_change"] = _num((end - previous_end) / abs(previous_end) * 100)
+        rows.append(row)
+        previous_end = end
+    return rows
+
+
 def summarize(dataset: dict) -> dict:
     """Key statistics for one dataset, its changes up to the latest value, and its most
     recent observations."""
@@ -69,6 +91,7 @@ def summarize(dataset: dict) -> dict:
         "mean": _num(s.mean()),
         "change_units": "percentage points" if is_rate else dataset["units"],
         "changes": {name: _change(s, start, is_rate) for name, start in _change_starts(s).items()},
+        "yearly": _yearly(s, is_rate),
         "recent": [{"date": d, "value": _num(v)} for d, v in s.tail(RECENT_POINTS).items()],
     }
 
