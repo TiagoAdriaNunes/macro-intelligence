@@ -307,6 +307,15 @@ wheels = [
 ]
 
 [[package]]
+name = "babel"
+version = "2.18.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/b2/51899539b6ceeeb420d40ed3cd4b7a40519404f9baf3d4ac99dc413a834b/babel-2.18.0.tar.gz", hash = "sha256:b80b99a14bd085fcacfa15c9165f651fbb3406e66cc603abf11c5750937c992d", size = 9959554, upload-time = "2026-02-01T12:30:56.078Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/f5/21d2de20e8b8b0408f0681956ca2c69f1320a3848ac50e6e7f39c6159675/babel-2.18.0-py3-none-any.whl", hash = "sha256:e2b422b277c2b9a9630c1d7903c2a00d0830c409c59ac8cae9081c92f1aeba35", size = 10196845, upload-time = "2026-02-01T12:30:53.445Z" },
+]
+
+[[package]]
 name = "bashkit"
 version = "0.20.3"
 source = { registry = "https://pypi.org/simple" }
@@ -834,6 +843,18 @@ wheels = [
 ]
 
 [[package]]
+name = "faicons"
+version = "0.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "htmltools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/e8/c12ef85c4444616ab1c1e96d5ecbadc8046d40b34797308846a2cfc06c80/faicons-0.2.2.tar.gz", hash = "sha256:6b7d7b19180179b6b83783f91bf6c9311c0f00ae0f97d41be1d24d9942361659", size = 604434, upload-time = "2024-01-16T23:27:21.634Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/3c/1db1b0f878319bb227f35a0fca7cad64e1f528b518bcab1a708da305c86d/faicons-0.2.2-py3-none-any.whl", hash = "sha256:d45d7c2635b53582a3375c67d7e975a28a91d2c16ef5f6b5033b5cdd507224b6", size = 607225, upload-time = "2024-01-16T23:27:19.475Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.162.0"
 source = { registry = "https://pypi.org/simple" }
@@ -976,6 +997,25 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0d/11/511b9487dd338a9cd98a8040a1f20feaa99b2f2e4921c049cb9cbbff2870/graphql_core-3.3.2.tar.gz", hash = "sha256:15d6eee7d4364fbc202833bc6bd0d504004d8ae7c0aaf620fa884d8e437622f2", size = 794346, upload-time = "2026-11-06T21:41:54.017Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9b/c0/dec5c3a96d9e47c7aaaa6a062e065e6c738d67d11a9cda15705592f45409/graphql_core-3.3.2-py3-none-any.whl", hash = "sha256:d83f49ee18d2db89fb575dab6ffefa8aa1bf5f60dff8a6781db6f63420041348", size = 366135, upload-time = "2026-11-06T21:41:52.327Z" },
+]
+
+[[package]]
+name = "great-tables"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "babel" },
+    { name = "faicons" },
+    { name = "htmltools" },
+    { name = "importlib-metadata" },
+    { name = "importlib-resources" },
+    { name = "multimark" },
+    { name = "nokap" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/54/41/323c0ed560f95c948dbbe3a9dc0fc6056bf518e25dd3daa4367db0d6986d/great_tables-1.1.0.tar.gz", hash = "sha256:847ae518a21f982c19ba6d2b495932bef766241068eded0d6a788a364acdb07d", size = 27857749, upload-time = "2026-10-15T15:44:09.386Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/4d/c58385ec1e841a833753c3b61840efa0f3e216b411cd713a52bb2a0b0823/great_tables-1.1.0-py3-none-any.whl", hash = "sha256:4e22cd6918d0bb6681d27fca19bb6a73e881b69165e35be303f45cb67824f595", size = 1683654, upload-time = "2026-10-15T15:44:07.483Z" },
 ]
 
 [[package]]
@@ -1269,6 +1309,27 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz", hash = "sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44", size = 216463, upload-time = "2026-09-17T14:11:04.752Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl", hash = "sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c", size = 69583, upload-time = "2026-09-17T14:11:03.168Z" },
+]
+
+[[package]]
+name = "importlib-metadata"
+version = "10.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "zipp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/98/f6/4eda8458eb00ec03e715c376c6b23b3def69687924c68d36d1c4003d3bc4/importlib_metadata-10.1.0.tar.gz", hash = "sha256:82b04047fa09792c1a8cfeddfe08bec79e4b13c29c8469b0d3949860f61017e8", size = 67761, upload-time = "2026-10-24T00:01:44.856Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/b6/495438ad95e0102aff8f6786b5474202f38cd5d4700d03a72b77977dec10/importlib_metadata-10.1.0-py3-none-any.whl", hash = "sha256:cf45ce66a929c64e994185a809c04840d0501db17e663810d993d0f4829265c7", size = 32221, upload-time = "2026-10-24T00:01:43.507Z" },
+]
+
+[[package]]
+name = "importlib-resources"
+version = "7.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/06/b56dfa750b44e86157093bc8fca0ab81dccbf5260510de4eaf1cb69b5b99/importlib_resources-7.1.0.tar.gz", hash = "sha256:0722d4c6212489c530f2a145a34c0a7a3b4721bc96a15fada5930e2a0b760708", size = 44985, upload-time = "2026-04-12T16:36:09.232Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8a/db/55a262f3606bebcae07cc14095338471ad7c0bbcaa37707e6f0ee49725b7/importlib_resources-7.1.0-py3-none-any.whl", hash = "sha256:1bd7b48b4088eddb2cd16382150bb515af0bd2c70128194392725f82ad2c96a1", size = 37232, upload-time = "2026-04-12T16:36:08.219Z" },
 ]
 
 [[package]]
@@ -1826,6 +1887,7 @@ name = "macro-intelligence"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "great-tables" },
     { name = "langchain-core" },
     { name = "langchain-openrouter" },
     { name = "langgraph" },
@@ -1850,6 +1912,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "great-tables", specifier = ">=1.1.0" },
     { name = "langchain-core", specifier = ">=1.7.6" },
     { name = "langchain-openrouter", specifier = ">=0.2.9" },
     { name = "langgraph", specifier = ">=1.2.20" },
@@ -2084,12 +2147,45 @@ wheels = [
 ]
 
 [[package]]
+name = "multimark"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d9/17/cffecf6e6bcaa6453c4782e4bed80d0e06e5e0ba172b8cfc2ba57c6342e1/multimark-0.4.0.tar.gz", hash = "sha256:74522c5a91079343847f04d80d21b59f7ef05ffc9c6c2d0da1d3528630d702db", size = 1497219, upload-time = "2026-10-06T17:52:54.465Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/8a/f6ec315538f8eead169cb2266a5d5d9458208eb371821af8a9facc2625b3/multimark-0.4.0-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:0af429f7614ebd1898a18fdf0cc96c9216432515f91ead436bb9e04a950c89a6", size = 152533, upload-time = "2026-10-06T17:52:45.043Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/c4/17ad4f6ba0bc951ec6d7835eb827cb5f6d84d54da9ba5017c091f938938f/multimark-0.4.0-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:3a446f7079bebb82a5dbc9d7bf7abe07a44db60f72ef29706b0d556fb657bad2", size = 148079, upload-time = "2026-10-06T17:52:46.38Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/b9/d8394d44df2e0f66a33fa3b344968fc1c7fb37bf78f1637c0f36627a6796/multimark-0.4.0-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:50d7f34540b642b3f0c4a98959e21626ef44c7e0c7f0f0d456b3f07f0c8c8e6d", size = 493154, upload-time = "2026-10-06T17:52:47.474Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/17/556451fb9294df13779787f65257f28fb296b8868b3615572918948f449a/multimark-0.4.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d01e1f05ff9dedfa5cf59d88c6024b41b991cf56e778c12cb91b3f408933ef2b", size = 499807, upload-time = "2026-10-06T17:52:49.214Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/cf/b901860e4dacc26528a9335a162132bdd518d1c10f8f60b1bf0cfb9f85f0/multimark-0.4.0-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:d195900df1d9658b5f5f1c3a878df50e1d1d2b65fe3207573d3c8189db19353a", size = 495875, upload-time = "2026-10-06T17:52:50.472Z" },
+    { url = "https://files.pythonhosted.org/packages/01/33/18e9ad0ec38c3d18aebf30821849660b3d8117857086f3c0a1e0ac00bb24/multimark-0.4.0-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:025997f9ce2f640863a16c81cf7c4822b6922a044d2e65461b394724fa19ed6a", size = 501717, upload-time = "2026-10-06T17:52:51.619Z" },
+    { url = "https://files.pythonhosted.org/packages/12/ff/49a1fef0d6b8fade74bf4d38138b3684c83c3128210ad46680328c7de772/multimark-0.4.0-cp39-abi3-pyemscripten_2026_0_wasm32.whl", hash = "sha256:6995e3dd0f22cdcbef1285a9641f1a4b20a8ef2b33e106e53a986cc0cc754ff2", size = 116638, upload-time = "2026-10-06T17:53:10.754Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/65/efecdc71656adb1102897557f66bc4868e3843ba3a942de05fdd7711fa9c/multimark-0.4.0-cp39-abi3-win_amd64.whl", hash = "sha256:78fcd127f4a8de3dd5b814a71e754b519657d58744741c4b47f835b8607fbf39", size = 140515, upload-time = "2026-10-06T17:52:53.244Z" },
+]
+
+[[package]]
 name = "narwhals"
 version = "2.28.0"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/67/43/e11d75a7fb635c6f63dd6e176cb3e050ec2fee35f2f2267b332a6ad351ec/narwhals-2.28.0.tar.gz", hash = "sha256:2d9860c80d6610820826e94c6e42ce4b1d92d89cdd479586e652a8d211dab345", size = 754977, upload-time = "2026-10-27T12:19:33.777Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cf/82/8ef9c7e0f50493307a49c09cfa7f00c5a778b6d1921f7b2dabe1d3a5809e/narwhals-2.28.0-py3-none-any.whl", hash = "sha256:1f69d6385ec30e2fa6e1fdeb37c562ecabd0f713f6f3e3b58a668c5c9df9567f", size = 490591, upload-time = "2026-10-27T12:19:31.649Z" },
+]
+
+[[package]]
+name = "nokap"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b9/f7/a4f3d6f89773df40884bc10790977c80a9ea17ad526ea0b0cd35a703595c/nokap-0.1.0.tar.gz", hash = "sha256:63071cf5e7c4f0487532f6281c6ea85d90673d5cd835ffe5e64c913989742eb9", size = 77047, upload-time = "2026-06-08T23:19:17.959Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/dc/c35af5ccf8dbf3268750c54a3c0830f486b8faec38c811aff92335aa99ba/nokap-0.1.0-py3-none-any.whl", hash = "sha256:36f2cae8d4251945dbe311ef68916c7eddfe51da490aabe0d68c5d13294b2539", size = 36233, upload-time = "2026-06-08T23:19:16.725Z" },
 ]
 
 [[package]]
@@ -4766,6 +4862,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b9/ff/28666972b4a78dca99a537cbd42abe50dfdeca4d6388984c841cfe1f933f/xxhash-4.0.2-pp312-pypy312_pp80-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:7b244e3e1d6eadb5061ce777632a822ed75c2fb6174c65882f5829f31b46e8c1", size = 42584, upload-time = "2026-10-19T05:59:00.064Z" },
     { url = "https://files.pythonhosted.org/packages/0a/30/0b46bb908376d75733ca70cd4124f74abeea0f50732749dafa848f42f385/xxhash-4.0.2-pp312-pypy312_pp80-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:63522739ce94e4e73c1605aa60a52b3863e77e835f6292cc8a5e7e7b626ff00c", size = 39472, upload-time = "2026-10-19T06:01:55.015Z" },
     { url = "https://files.pythonhosted.org/packages/4c/23/6c0aa47774513c1237f7ea198daf36f2d2609f1e233249a9ea97d5b55c38/xxhash-4.0.2-pp312-pypy312_pp80-win_amd64.whl", hash = "sha256:0b96b2694c97084c5e2bff8a6a3dc3c2fb3b9a07178286e8d69869efe76eeb50", size = 84214, upload-time = "2026-10-19T06:00:06.386Z" },
+]
+
+[[package]]
+name = "zipp"
+version = "4.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/05/ba1458dee0ac485b2a01071c1b88f5199fe878a485df482e10e1ef2205cc/zipp-4.1.2.tar.gz", hash = "sha256:cf474b90b07ea932637e17c6b9479de2b2882900b0d311bdaf4f5c000a15a97f", size = 27864, upload-time = "2026-10-21T18:57:04.743Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/44/7bd2007260da11cccca29ba2d4c345f1287aa663db38ee7cefeabf6386a5/zipp-4.1.2-py3-none-any.whl", hash = "sha256:b30cb6cd253122169c47de245ca24a86bac2a5d3802ba15bf7ba6414eb9e144d", size = 10581, upload-time = "2026-10-21T18:57:03.79Z" },
 ]
 
 [[package]]

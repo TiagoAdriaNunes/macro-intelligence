@@ -9,6 +9,7 @@ from .analysis import source_lines
 from .graph import build_graph
 from .grounding import check_line
 from .llm import make_llm
+from .tables import yearly_table_text
 from .tracing import setup_tracing
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,10 @@ def main() -> None:
     if args.verbose and "plan" in result:
         print("Plan:", json.dumps(result["plan"]), end="\n\n")
     print(result["answer"])
+    if result.get("plan", {}).get("yearly_table"):
+        for summary in result.get("summaries", []):
+            if len(summary.get("yearly", [])) > 1:
+                print(f"\n{yearly_table_text(summary)}")
 
     sources = source_lines(result.get("datasets", []))
     if sources:

@@ -15,10 +15,12 @@ from typing import Any, Protocol
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.state import CompiledStateGraph
+from shiny.ui import HTML
 
 from .analysis import source_lines
 from .grounding import check_line
 from .indicators import CATALOG
+from .tables import yearly_table_html
 
 log = logging.getLogger(__name__)
 
@@ -32,13 +34,20 @@ class Replace:
     text: str
 
 
-Chunk = str | Replace  # text to append, or a replacement
+@dataclass(frozen=True)
+class Table:
+    """A table to show as HTML (great_tables output), which the chat doesn't sanitize."""
+
+    html: str
+
+
+Chunk = str | Replace | Table  # Markdown to append, a replacement, or a table
 
 
 class Message(Protocol):
     """A chat message being streamed, such as shinychat's `message_stream_context()`."""
 
-    async def append(self, message_chunk: str) -> None: ...
+    async def append(self, message_chunk: str | HTML) -> None: ...
 
     async def replace(self, message_chunk: str) -> None: ...
 
@@ -48,6 +57,8 @@ async def send(chunks: AsyncIterable[Chunk], message: Message) -> None:
     async for chunk in chunks:
         if isinstance(chunk, Replace):
             await message.replace(chunk.text)
+        elif isinstance(chunk, Table):
+            await message.append(HTML(chunk.html))
         else:
             await message.append(chunk)
 
@@ -94,6 +105,8 @@ class AnswerStream:
         self._streamed = ""  # answer text streamed so far
         self._run_id: str | None = None  # the model run that streamed it
         self._datasets: list[dict] = []
+        self._summaries: list[dict] = []  # the data the model was given
+        self._yearly_table = False  # whether the plan asked for tables by year
         self._model = ""
 
     async def __aiter__(self) -> AsyncIterator[Chunk]:
@@ -129,17 +142,28 @@ class AnswerStream:
         yield text
 
     def _on_update(self, node: str, update: dict[str, Any]) -> Iterator[Chunk]:
-        if node == "plan" and update["plan"]["indicators"]:
-            self._lookup = looking_up(update["plan"])
-            yield self._lookup
+        if node == "plan":
+            self._yearly_table = bool(update["plan"].get("yearly_table"))
+            if update["plan"]["indicators"]:
+                self._lookup = looking_up(update["plan"])
+                yield self._lookup
         elif node == "fetch_data":
             self._datasets = update.get("datasets", [])
         elif node in ("answer", "catalog", "no_data"):
             answer = self.answer = update["answer"]
             self._model = update.get("model", "")
+            self._summaries = update.get("summaries", [])
             if not self._streamed:  # a fixed message, or a model that didn't stream
                 yield answer
             elif self._streamed != answer:  # show exactly the text the data check verifies
                 yield Replace(self._lookup + answer)
         elif node == "verify":
+            yield from self._tables()
             yield footer(self._datasets, self._model, update.get("check"))
+
+    def _tables(self) -> Iterator[Table]:
+        """A table by year for each series with more than one year, when the plan asks."""
+        if self._yearly_table:
+            for summary in self._summaries:
+                if len(summary.get("yearly", [])) > 1:
+                    yield Table(yearly_table_html(summary))
