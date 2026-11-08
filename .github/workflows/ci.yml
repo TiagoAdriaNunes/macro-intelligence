@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Format, lint, type check and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      # Uses the Python in .python-version, as the Dockerfile does
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Check formatting
+        run: uv run ruff format --check
+
+      - name: Lint
+        run: uv run ruff check --output-format=github
+
+      - name: Type check
+        run: uv run pyrefly check
+
+      # Tests use a fake LLM, fake data and a fake model catalogue, so no API key is needed
+      - name: Run tests
+        run: uv run pytest
