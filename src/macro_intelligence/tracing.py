@@ -51,7 +51,7 @@ def setup_tracing() -> bool:
         )
         return False
 
-    # Endpoint: PHOENIX_COLLECTOR_ENDPOINT, else the local server at http://localhost:6006.
+    # Endpoint: PHOENIX_COLLECTOR_ENDPOINT, else the local server's gRPC port (TRACES_PORT).
     # Batched so tracing never slows answers; pending spans are sent when the process exits.
     provider = register(project_name=PROJECT_NAME, batch=True, verbose=False)
     LangChainInstrumentor().instrument(tracer_provider=provider)
