@@ -64,7 +64,10 @@ def _dates(series: pd.Series) -> pd.DatetimeIndex:
 
 
 def _fetch_bcb(ind: Indicator, start: date) -> dict:
-    df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
+    try:
+        df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
+    except ValueError as exc:  # python-bcb can't parse the HTML page BCB sends on a rejection
+        raise RuntimeError("BCB sent an error page instead of data") from exc
     assert isinstance(df, pd.DataFrame)  # sgs.get returns a list only with multi=False
     series = df[ind.key].dropna()
 

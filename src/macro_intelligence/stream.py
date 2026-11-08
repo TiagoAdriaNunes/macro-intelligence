@@ -9,9 +9,9 @@ so the reply always shows the answer the data check verified.
 """
 
 import logging
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterable, AsyncIterator, Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.state import CompiledStateGraph
@@ -33,6 +33,23 @@ class Replace:
 
 
 Chunk = str | Replace  # text to append, or a replacement
+
+
+class Message(Protocol):
+    """A chat message being streamed, such as shinychat's `message_stream_context()`."""
+
+    async def append(self, message_chunk: str) -> None: ...
+
+    async def replace(self, message_chunk: str) -> None: ...
+
+
+async def send(chunks: AsyncIterable[Chunk], message: Message) -> None:
+    """Show a reply's chunks in a chat message."""
+    async for chunk in chunks:
+        if isinstance(chunk, Replace):
+            await message.replace(chunk.text)
+        else:
+            await message.append(chunk)
 
 
 def looking_up(plan: dict) -> str:
@@ -69,6 +86,9 @@ class AnswerStream:
         self.graph = graph
         self.question = question
         self.history = history or []
+        self._reset()
+
+    def _reset(self) -> None:
         self.answer: str | None = None
         self._lookup = ""  # the "Looking up" line shown before the answer
         self._streamed = ""  # answer text streamed so far
@@ -77,6 +97,7 @@ class AnswerStream:
         self._model = ""
 
     async def __aiter__(self) -> AsyncIterator[Chunk]:
+        self._reset()  # each iteration runs the graph again
         inputs = {"question": self.question, "history": self.history}
         try:
             async for mode, payload in self.graph.astream(

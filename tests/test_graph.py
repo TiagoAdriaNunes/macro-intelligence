@@ -3,6 +3,7 @@
 from datetime import date
 
 import pandas as pd
+import pytest
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -196,3 +197,12 @@ def test_worldbank_rows_become_one_sorted_dataset_per_country(monkeypatch):
     assert datasets[1]["observations"] == [{"date": "2024", "value": -1.3}]
     # a 1-year window still asks for the last 3 years, so published figures are found
     assert requested["years"] == [this_year - 2, this_year - 1, this_year]
+
+
+def test_bcb_error_page_gives_a_clear_error(monkeypatch):
+    def rejected(*args, **kwargs):
+        raise ValueError("Expected object or value")  # python-bcb parsing BCB's HTML page
+
+    monkeypatch.setattr(sources.sgs, "get", rejected)
+    with pytest.raises(RuntimeError, match="BCB sent an error page"):
+        sources.fetch_indicator(CATALOG["br_ipca_12m"], ["BRA"], date(2026, 1, 1))

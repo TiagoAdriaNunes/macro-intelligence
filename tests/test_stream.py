@@ -10,20 +10,33 @@ from langchain_core.runnables import RunnableLambda
 from test_graph import FakeLLM, fake_dataset
 
 from macro_intelligence.graph import Plan, build_graph
-from macro_intelligence.stream import FAILED, AnswerStream, Replace
+from macro_intelligence.stream import FAILED, AnswerStream, send
+
+
+class FakeMessage:
+    """A chat message, like shinychat's message_stream_context()."""
+
+    def __init__(self):
+        self.text = ""
+
+    async def append(self, message_chunk: str) -> None:
+        self.text += message_chunk
+
+    async def replace(self, message_chunk: str) -> None:
+        self.text = message_chunk
+
+
+def show(stream: AnswerStream) -> str:
+    """The reply as the chat shows it at the end, sent the way the app sends it."""
+    message = FakeMessage()
+    asyncio.run(send(stream, message))
+    return message.text
 
 
 def collect(graph, question, history=None) -> tuple[str, AnswerStream]:
-    """The reply as the chat shows it at the end, and the stream (for its `answer`)."""
+    """The reply as shown, and the stream (for its `answer`)."""
     stream = AnswerStream(graph, question, history)
-
-    async def run():
-        shown = ""
-        async for chunk in stream:
-            shown = chunk.text if isinstance(chunk, Replace) else shown + chunk
-        return shown
-
-    return asyncio.run(run()), stream
+    return show(stream), stream
 
 
 class StreamingLLM(BaseChatModel):
@@ -113,3 +126,11 @@ def test_partial_text_is_dropped_when_every_model_fails():
     text, _ = collect(graph, "Inflation?")
 
     assert text == "_Looking up: IPCA inflation (12-month)._\n\n" + FAILED
+
+
+def test_a_stream_can_be_shown_twice():
+    graph = build_graph(
+        FakeLLM(plan=Plan(indicators=["br_ipca_12m"])), fetch=lambda ind, c, s: [fake_dataset(ind)]
+    )
+    stream = AnswerStream(graph, "Inflation?")
+    assert show(stream) == show(stream)
