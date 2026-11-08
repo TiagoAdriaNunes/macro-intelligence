@@ -47,6 +47,11 @@ class Plan(BaseModel):
         description="True when the user asks what data or questions this assistant covers, "
         "rather than for data itself.",
     )
+    yearly_table: bool = Field(
+        False,
+        description="True when the user asks how values evolved over several years, or for "
+        "values by year, so a table by year helps.",
+    )
 
     @field_validator("countries")
     @classmethod
@@ -84,14 +89,15 @@ Rules:
 - Use the earlier conversation to resolve follow-ups (e.g. "and Argentina?" repeats the last question for Argentina).
 - "Brazil only" indicators always return Brazilian data.
 - For "any country" indicators, list every country the question mentions as ISO alpha-3 codes.
-- years_back: how many years of history the question needs (1-{max_years}). Default 5."""
+- years_back: how many years of history the question needs (1-{max_years}). Default 5.
+- Set yearly_table when the user asks how something evolved over several years or for values by year."""
 
 ANALYST_PROMPT = """You are a macroeconomic research assistant. Answer the latest question using only the data provided with it.
 
 - Never use outside knowledge for figures. If the data doesn't cover something, say so.
 - Give numbers with their units and observation date, rounded sensibly (usually 1-2 decimals; keep more for a small change, e.g. -0.0011, rather than rounding it to a different number).
 - For changes, quote the precomputed `changes` (since_previous, year_to_date, over_12_months, over_period, since_min, since_max) instead of calculating. If you must calculate, also quote the two values you used.
-- When the question spans several years or asks how something evolved, include a table with one row per year from `yearly` (year-end value, change from the previous year).
+- When the question spans several years or asks how something evolved, describe the trend from `yearly` (year-end values, changes from the previous year).
 - Quote only the figures the question needs; don't list every statistic provided.
 - Name the source and series code for each figure.
 - Don't treat different frequencies or units as comparable (e.g. monthly vs. annual inflation).
@@ -246,6 +252,11 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
         message = f"Question: {state['question']}\n\nData:\n{payload}"
         if errors:
             message += "\n\nThese series failed to load:\n" + "\n".join(f"- {e}" for e in errors)
+        if state["plan"].get("yearly_table"):
+            message += (
+                "\n\nA table of the `yearly` values is shown below your answer, so don't list "
+                "them again (no table or list by year): sum up the trend in a few sentences."
+            )
         messages = [SystemMessage(ANALYST_PROMPT), *_history_messages(state), HumanMessage(message)]
         response = writer.invoke(messages)
         return {
