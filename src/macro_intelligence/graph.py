@@ -1,7 +1,8 @@
 """LangGraph workflow: plan -> fetch_data -> answer -> verify.
 
     START -> plan --(indicators chosen)--> fetch_data -> answer -> verify -> END
-             plan --(nothing matches)----> no_data -------------------------> END
+             plan --(asks what's covered)-> catalog --------------------------> END
+             plan --(nothing matches)----> no_data ---------------------------> END
 
 Only `plan` and `answer` call the LLM. Fetching, calculations and `verify` (which checks every
 figure in the answer against the fetched data) are plain Python.
@@ -21,7 +22,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .analysis import summarize
 from .grounding import check_answer
-from .indicators import CATALOG, Indicator, catalog_text
+from .indicators import CATALOG, Indicator, catalog_markdown, catalog_text
 from .sources import fetch_indicator
 
 IndicatorKey = Literal[tuple(CATALOG)]  # type: ignore[valid-type]
@@ -41,6 +42,11 @@ class Plan(BaseModel):
         description="ISO 3166-1 alpha-3 codes (e.g. BRA, USA, ARG) for World Bank indicators.",
     )
     years_back: int = Field(5, description=f"Years of history needed, 1 to {MAX_YEARS_BACK}.")
+    about_catalog: bool = Field(
+        False,
+        description="True when the user asks what data or questions this assistant covers, "
+        "rather than for data itself.",
+    )
 
     @field_validator("countries")
     @classmethod
@@ -74,6 +80,7 @@ Pick the indicators needed to answer the user's latest question, using only thes
 
 Rules:
 - Pick only what the question needs. Pick nothing if the catalog can't answer it.
+- If the user asks what you can answer or which data you have, set about_catalog and pick nothing.
 - Use the earlier conversation to resolve follow-ups (e.g. "and Argentina?" repeats the last question for Argentina).
 - "Brazil only" indicators always return Brazilian data.
 - For "any country" indicators, list every country the question mentions as ISO alpha-3 codes.
@@ -164,6 +171,32 @@ def _require_text(message: AIMessage) -> AIMessage:
     return message
 
 
+CATALOG_ANSWER = (
+    "I answer questions with official data from the Banco Central do Brasil and the World Bank, "
+    f"going back up to {MAX_YEARS_BACK} years.\n\n{catalog_markdown()}\n\n"
+    "Ask for the latest value, how something changed (this year, over 12 months, since its low) "
+    'or a comparison, e.g. "How has the Selic rate changed this year?" or '
+    '"Compare GDP growth in Brazil, Argentina and Chile".'
+)
+
+
+def _route_after_plan(state: State) -> Literal["catalog", "fetch_data", "no_data"]:
+    plan = state["plan"]
+    if plan.get("about_catalog"):
+        return "catalog"
+    return "fetch_data" if plan["indicators"] else "no_data"
+
+
+def _catalog(state: State) -> dict:
+    return {"answer": CATALOG_ANSWER}
+
+
+def _no_data(state: State) -> dict:
+    return {
+        "answer": f"None of the indicators I can fetch match this question.\n\n{CATALOG_ANSWER}"
+    }
+
+
 def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
     """Compile the agent graph. `llm` is a LangChain chat model with tool calling, or a chain
     of them built with `with_fallbacks`."""
@@ -183,9 +216,6 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
         ]
         result = planner.invoke(messages)
         return {"plan": result.model_dump()}
-
-    def route_after_plan(state: State) -> Literal["fetch_data", "no_data"]:
-        return "fetch_data" if state["plan"]["indicators"] else "no_data"
 
     def fetch_data(state: State) -> dict:
         p = state["plan"]
@@ -219,24 +249,19 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
             return {}
         return {"check": check_answer(state["answer"], state["summaries"], [state["question"]])}
 
-    def no_data(state: State) -> dict:
-        available = "\n".join(f"- {ind.name}" for ind in CATALOG.values())
-        return {
-            "answer": "None of the indicators I can fetch match this question. Available data:\n"
-            + available
-        }
-
     # LangGraph's type hints reject any TypedDict here, though it's the documented way
     builder = StateGraph(State)  # pyrefly: ignore[bad-specialization]
     builder.add_node("plan", plan)
     builder.add_node("fetch_data", fetch_data)
     builder.add_node("answer", answer)
     builder.add_node("verify", verify)
-    builder.add_node("no_data", no_data)
+    builder.add_node("catalog", _catalog)
+    builder.add_node("no_data", _no_data)
     builder.add_edge(START, "plan")
-    builder.add_conditional_edges("plan", route_after_plan)
+    builder.add_conditional_edges("plan", _route_after_plan)
     builder.add_edge("fetch_data", "answer")
     builder.add_edge("answer", "verify")
     builder.add_edge("verify", END)
+    builder.add_edge("catalog", END)
     builder.add_edge("no_data", END)
     return builder.compile()

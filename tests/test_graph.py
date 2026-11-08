@@ -89,6 +89,20 @@ def test_unmatched_question_skips_fetch_and_llm_answer():
     assert llm.prompts == []
 
 
+def test_question_about_the_catalog_lists_it_without_fetching():
+    llm = FakeLLM(plan=Plan(about_catalog=True, indicators=["br_selic_target"]))
+
+    def fetch(*args):
+        raise AssertionError("should not fetch")
+
+    result = build_graph(llm, fetch=fetch).invoke({"question": "What can I ask you?"})
+
+    assert "None of the indicators" not in result["answer"]
+    assert "**Brazil**" in result["answer"] and "**Any country**" in result["answer"]
+    assert all(ind.name in result["answer"] for ind in CATALOG.values())
+    assert llm.prompts == []  # answered without the LLM
+
+
 def test_one_failing_source_is_reported_not_fatal():
     llm = FakeLLM(plan=Plan(indicators=["br_ipca_12m", "wb_gdp_growth"], countries=["BRA"]))
 

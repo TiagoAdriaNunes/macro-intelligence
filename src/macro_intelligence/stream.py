@@ -134,7 +134,7 @@ class AnswerStream:
             yield self._lookup
         elif node == "fetch_data":
             self._datasets = update.get("datasets", [])
-        elif node in ("answer", "no_data"):
+        elif node in ("answer", "catalog", "no_data"):
             answer = self.answer = update["answer"]
             self._model = update.get("model", "")
             if not self._streamed:  # a fixed message, or a model that didn't stream
