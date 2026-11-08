@@ -6,6 +6,7 @@ while developing.
 
 import asyncio
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -113,10 +114,17 @@ app = App(app_ui, server)
 
 
 def main() -> None:
+    """Run the app: on this machine in the browser, or in a container (Dockerfile sets HOST,
+    PORT and LOG_LEVEL)."""
     from shiny import run_app
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(level=level, format="%(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     start_phoenix()  # only when PHOENIX_TRACING=true and it isn't running; stops with the app
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
     # Shiny sets run_app to None only when running in the browser (Pyodide)
-    run_app("macro_intelligence.app:app", launch_browser=True)  # pyrefly: ignore[not-callable]
+    run_app(  # pyrefly: ignore[not-callable]
+        "macro_intelligence.app:app", host=host, port=port, launch_browser=host == "127.0.0.1"
+    )

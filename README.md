@@ -37,6 +37,19 @@ To see each step, prompt and model call in [Arize Phoenix](https://arize.com/doc
 uv run python -m macro_intelligence.tracing
 ```
 
+## Deploy to Fly.io
+
+Requires [`flyctl`](https://fly.io/docs/flyctl/install/) and a Fly.io account.
+
+```bash
+flyctl auth login
+flyctl apps create <your-app-name>   # then set app = "<your-app-name>" in fly.toml
+flyctl secrets set OPENROUTER_API_KEY=<your key>
+flyctl deploy --ha=false
+```
+
+`--ha=false` keeps a single machine, which Shiny needs because each chat session lives on one machine. The machine stops when idle and starts on the next visit. There's no login: anyone with the URL uses your OpenRouter key.
+
 ## Development
 
 ```bash
