@@ -1,17 +1,17 @@
 """Command line entry point: `macro-intelligence "your question"`."""
 
 import argparse
-import logging
 import sys
+
+from loguru import logger
 
 from .analysis import source_lines
 from .graph import Plan, build_graph
 from .grounding import check_line
 from .llm import make_llm
+from .logs import setup_logging
 from .tables import yearly_table_text
 from .tracing import setup_tracing
-
-log = logging.getLogger(__name__)
 
 
 def main() -> None:
@@ -31,11 +31,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO if args.verbose else logging.WARNING,
-        format="%(levelname)s %(message)s",
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per HTTP request otherwise
+    setup_logging("INFO" if args.verbose else "WARNING")
     setup_tracing()
 
     try:
@@ -46,7 +42,7 @@ def main() -> None:
     try:
         result = build_graph(llm).invoke({"question": " ".join(args.question)})
     except Exception as exc:  # usually every model failed (rate limits, outages)
-        log.info("The agent failed", exc_info=True)  # the traceback, with --verbose
+        logger.opt(exception=True).info("The agent failed")  # the traceback, with --verbose
         sys.exit(f"Could not answer: {exc}")
 
     plan: Plan | None = result.get("plan")

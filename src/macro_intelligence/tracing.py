@@ -12,7 +12,6 @@ Phoenix and its LangChain instrumentation are dev dependencies; tracing stays of
 import atexit
 import functools
 import importlib.util
-import logging
 import os
 import socket
 import subprocess
@@ -20,8 +19,7 @@ import sys
 import time
 
 from dotenv import load_dotenv
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 PROJECT_NAME = "macro-intelligence"
 PHOENIX_PORTS = {6006: "web UI and HTTP traces", 4317: "gRPC traces"}
@@ -50,7 +48,7 @@ def start_phoenix() -> None:
     isn't running yet. Call it before setup_tracing()."""
     if not _tracing_on() or not _local_phoenix_down() or not importlib.util.find_spec("phoenix"):
         return  # setup_tracing() explains a missing Phoenix
-    log.info("Starting Phoenix (UI at http://localhost:6006)")
+    logger.info("Starting Phoenix (UI at http://localhost:6006)")
     server = subprocess.Popen(
         [sys.executable, "-m", "macro_intelligence.tracing"],
         stdout=subprocess.DEVNULL,
@@ -60,7 +58,7 @@ def start_phoenix() -> None:
     deadline = time.monotonic() + STARTUP_SECONDS
     while not _port_in_use(TRACES_PORT):
         if server.poll() is not None or time.monotonic() > deadline:
-            log.warning(
+            logger.warning(
                 "Phoenix didn't start; run `uv run python -m macro_intelligence.tracing` to see why."
             )
             return
@@ -74,7 +72,7 @@ def setup_tracing() -> bool:
         return False
     # Without a running Phoenix, every batch of traces would log a connection error
     if _local_phoenix_down():
-        log.warning(
+        logger.warning(
             "PHOENIX_TRACING is on but Phoenix isn't running, so tracing is off. Start it with "
             "`uv run python -m macro_intelligence.tracing`, then restart."
         )
@@ -83,7 +81,7 @@ def setup_tracing() -> bool:
         from openinference.instrumentation.langchain import LangChainInstrumentor
         from phoenix.otel import register
     except ImportError:
-        log.warning(
+        logger.warning(
             "PHOENIX_TRACING is on but Phoenix isn't installed; run `uv sync` to add dev dependencies."
         )
         return False
@@ -92,7 +90,7 @@ def setup_tracing() -> bool:
     # Batched so tracing never slows answers; pending spans are sent when the process exits.
     provider = register(project_name=PROJECT_NAME, batch=True, verbose=False)
     LangChainInstrumentor().instrument(tracer_provider=provider)
-    log.info("Tracing to Phoenix, project %r", PROJECT_NAME)
+    logger.info("Tracing to Phoenix, project {!r}", PROJECT_NAME)
     return True
 
 
