@@ -6,24 +6,71 @@ year to date, over 12 months, over the whole period, since the low and since the
 a row per year, so the model rarely has to calculate.
 """
 
+from typing import NotRequired, TypedDict
+
 import pandas as pd
 
+from .sources import Dataset
+
 RECENT_POINTS = 12  # recent observations passed to the LLM per dataset
+
+
+class Point(TypedDict):
+    date: str
+    value: float
+
+
+# "from" is a Python keyword, so this one uses the functional syntax
+Change = TypedDict(
+    "Change",
+    {"from": Point, "change": float, "pct_change": NotRequired[float]},  # % only for levels
+)
+
+
+class YearRow(TypedDict):
+    year: str
+    end: Point  # last value of the year; the latest, for the current year
+    mean: NotRequired[float]  # monthly or daily data only
+    change: NotRequired[float]  # from the previous year's end
+    pct_change: NotRequired[float]
+
+
+class Summary(TypedDict):
+    """What the model is given about one dataset. A dataset without observations has only
+    the first fields and `note`."""
+
+    name: str
+    source: str
+    code: str
+    country: str
+    units: str
+    frequency: str
+    observations: int  # how many
+    note: NotRequired[str]
+    period: NotRequired[str]
+    latest: NotRequired[Point]
+    min: NotRequired[Point]
+    max: NotRequired[Point]
+    mean: NotRequired[float]
+    change_units: NotRequired[str]
+    changes: NotRequired[dict[str, Change]]  # by name, e.g. "year_to_date"
+    yearly: NotRequired[list[YearRow]]
+    recent: NotRequired[list[Point]]
 
 
 def _num(value: float) -> float:
     return round(float(value), 4)  # plain float, so state stays JSON-serializable
 
 
-def _point(s: pd.Series, date: str) -> dict:
+def _point(s: pd.Series, date: str) -> Point:
     return {"date": date, "value": _num(s[date])}
 
 
-def _change(s: pd.Series, start: str, is_rate: bool) -> dict:
+def _change(s: pd.Series, start: str, is_rate: bool) -> Change:
     """From the observation dated `start` to the latest. A change in a rate is in percentage
     points, so only levels (e.g. BRL per USD) also get a percent change."""
     first, last = float(s[start]), float(s.iloc[-1])
-    change = {"from": _point(s, start), "change": _num(last - first)}
+    change: Change = {"from": _point(s, start), "change": _num(last - first)}
     if not is_rate and first != 0:
         change["pct_change"] = _num((last - first) / abs(first) * 100)
     return change
@@ -48,18 +95,18 @@ def _change_starts(s: pd.Series) -> dict[str, str]:
     return {name: start for name, start in starts.items() if start != latest}
 
 
-def _yearly(s: pd.Series, is_rate: bool) -> list[dict]:
+def _yearly(s: pd.Series, is_rate: bool) -> list[YearRow]:
     """One row per calendar year: its last value (the latest, for the current year), the mean
     of its values for monthly data (of its month-end values, for a daily series reduced by
     sources.py), and the change from the previous year's last value."""
     by_year: dict[str, list[tuple[str, float]]] = {}
     for date, value in s.items():  # dates are sorted
         by_year.setdefault(str(date)[:4], []).append((str(date), float(value)))
-    rows: list[dict] = []
+    rows: list[YearRow] = []
     previous_end: float | None = None
     for year, points in by_year.items():
         end_date, end = points[-1]
-        row: dict = {"year": year, "end": {"date": end_date, "value": _num(end)}}
+        row: YearRow = {"year": year, "end": {"date": end_date, "value": _num(end)}}
         if len(points) > 1:
             row["mean"] = _num(sum(value for _, value in points) / len(points))
         if previous_end is not None:
@@ -71,33 +118,43 @@ def _yearly(s: pd.Series, is_rate: bool) -> list[dict]:
     return rows
 
 
-def summarize(dataset: dict) -> dict:
+def summarize(dataset: Dataset) -> Summary:
     """Key statistics for one dataset, its changes up to the latest value, and its most
     recent observations."""
-    meta = {k: dataset[k] for k in ("name", "source", "code", "country", "units", "frequency")}
     obs = dataset["observations"]
+    summary: Summary = {
+        "name": dataset["name"],
+        "source": dataset["source"],
+        "code": dataset["code"],
+        "country": dataset["country"],
+        "units": dataset["units"],
+        "frequency": dataset["frequency"],
+        "observations": len(obs),
+    }
     if not obs:
-        return {**meta, "observations": 0, "note": "No data published for this period."}
+        summary["note"] = "No data published for this period."
+        return summary
 
     s = pd.Series([o["value"] for o in obs], index=[o["date"] for o in obs])
     is_rate = "%" in dataset["units"]
     first_date, last_date = str(s.index[0]), str(s.index[-1])
-    return {
-        **meta,
-        "observations": len(s),
-        "period": f"{first_date} to {last_date}",
-        "latest": _point(s, last_date),
-        "min": _point(s, str(s.idxmin())),
-        "max": _point(s, str(s.idxmax())),
-        "mean": _num(s.mean()),
-        "change_units": "percentage points" if is_rate else dataset["units"],
-        "changes": {name: _change(s, start, is_rate) for name, start in _change_starts(s).items()},
-        "yearly": _yearly(s, is_rate),
-        "recent": [{"date": d, "value": _num(v)} for d, v in s.tail(RECENT_POINTS).items()],
+    summary["period"] = f"{first_date} to {last_date}"
+    summary["latest"] = _point(s, last_date)
+    summary["min"] = _point(s, str(s.idxmin()))
+    summary["max"] = _point(s, str(s.idxmax()))
+    summary["mean"] = _num(s.mean())
+    summary["change_units"] = "percentage points" if is_rate else dataset["units"]
+    summary["changes"] = {
+        name: _change(s, start, is_rate) for name, start in _change_starts(s).items()
     }
+    summary["yearly"] = _yearly(s, is_rate)
+    summary["recent"] = [
+        {"date": str(d), "value": _num(v)} for d, v in s.tail(RECENT_POINTS).items()
+    ]
+    return summary
 
 
-def source_lines(datasets: list[dict]) -> list[str]:
+def source_lines(datasets: list[Dataset]) -> list[str]:
     """One citation line per series, for printing under the answer."""
     seen, lines = set(), []
     for d in datasets:

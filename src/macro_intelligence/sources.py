@@ -1,23 +1,12 @@
-"""Fetch indicator data from official sources into one common shape.
+"""Fetch indicator data from official sources into one common shape, `Dataset`.
 
-Every fetcher returns a list of "dataset" dicts (plain JSON types, so graph state
-stays serializable):
-
-    {
-        "indicator": "br_ipca_12m",
-        "name": "IPCA inflation (12-month)",
-        "source": "Banco Central do Brasil (SGS)",
-        "code": "13522",
-        "country": "BRA",
-        "units": "% change over 12 months",
-        "frequency": "monthly",
-        "observations": [{"date": "2026-09-01", "value": 4.58}, ...],
-        "fetched_at": "2026-11-07T05:30:00+00:00",
-    }
+Datasets are plain dicts (JSON types), so the graph state stays serializable; the TypedDicts
+below let the type checker verify every key.
 """
 
 import warnings
 from datetime import UTC, date, datetime
+from typing import TypedDict
 
 import pandas as pd
 import wbgapi as wb
@@ -41,7 +30,24 @@ wb.get_options.setdefault("timeout", (10, 90))  # (connect, read) seconds
 WORLD_BANK_MIN_YEARS = 3
 
 
-def fetch_indicator(ind: Indicator, countries: list[str], start: date) -> list[dict]:
+class Observation(TypedDict):
+    date: str  # YYYY-MM-DD, or YYYY for annual data
+    value: float
+
+
+class Dataset(TypedDict):
+    indicator: str  # catalog key, e.g. "br_ipca_12m"
+    name: str
+    source: str  # e.g. "Banco Central do Brasil (SGS)"
+    code: str  # the source's series code
+    country: str  # ISO 3166-1 alpha-3
+    units: str
+    frequency: str  # as published, or MONTH_ENDS for a reduced daily series
+    observations: list[Observation]
+    fetched_at: str  # ISO 8601, UTC
+
+
+def fetch_indicator(ind: Indicator, countries: list[str], start: date) -> list[Dataset]:
     """Fetch one indicator from `start` until today. Returns one dataset per country."""
     if ind.source == "bcb":
         return [_fetch_bcb(ind, start)]
@@ -50,7 +56,9 @@ def fetch_indicator(ind: Indicator, countries: list[str], start: date) -> list[d
     raise ValueError(f"Unknown source: {ind.source}")
 
 
-def _dataset(ind: Indicator, country: str, frequency: str, observations: list[dict]) -> dict:
+def _dataset(
+    ind: Indicator, country: str, frequency: str, observations: list[Observation]
+) -> Dataset:
     return {
         "indicator": ind.key,
         "name": ind.name,
@@ -69,7 +77,7 @@ def _dates(series: pd.Series) -> pd.DatetimeIndex:
     return pd.DatetimeIndex(series.index)
 
 
-def _fetch_bcb(ind: Indicator, start: date) -> dict:
+def _fetch_bcb(ind: Indicator, start: date) -> Dataset:
     try:
         df = sgs.get({ind.key: int(ind.code)}, start=start, timeout=REQUEST_TIMEOUT)
     except ValueError as exc:  # python-bcb can't parse the HTML page BCB sends on a rejection
@@ -86,18 +94,18 @@ def _fetch_bcb(ind: Indicator, start: date) -> dict:
         series = series.groupby(_dates(series).to_period("M")).tail(1)
         frequency = MONTH_ENDS
 
-    observations = [
+    observations: list[Observation] = [
         {"date": ts.date().isoformat(), "value": float(value)}
         for ts, value in zip(_dates(series), series, strict=True)
     ]
     return _dataset(ind, "BRA", frequency, observations)
 
 
-def _fetch_worldbank(ind: Indicator, countries: list[str], start: date) -> list[dict]:
+def _fetch_worldbank(ind: Indicator, countries: list[str], start: date) -> list[Dataset]:
     this_year = date.today().year
     first_year = min(start.year, this_year - WORLD_BANK_MIN_YEARS + 1)
     rows = wb.data.fetch(ind.code, economy=countries, time=range(first_year, this_year + 1))
-    by_country: dict[str, list[dict]] = {c: [] for c in countries}
+    by_country: dict[str, list[Observation]] = {c: [] for c in countries}
     for row in rows:
         if row["value"] is None:  # years not yet published come back empty
             continue

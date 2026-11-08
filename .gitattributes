@@ -1,0 +1,3 @@
+# The data catalog is generated with LF line endings (contracts.py), so keep LF on every OS;
+# otherwise git on Windows (core.autocrlf) reports regenerated files as modified
+catalog/** text eol=lf

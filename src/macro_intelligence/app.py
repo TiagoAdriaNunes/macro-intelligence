@@ -16,7 +16,7 @@ from shiny import App, reactive, ui
 from shinychat import Chat, page_chat
 
 # Absolute imports: `shiny run src/macro_intelligence/app.py` loads this file outside its package
-from macro_intelligence.graph import ChatModel, build_graph
+from macro_intelligence.graph import ChatModel, Turn, build_graph
 from macro_intelligence.llm import make_llm
 from macro_intelligence.stream import AnswerStream, send
 from macro_intelligence.tracing import setup_tracing, start_phoenix
@@ -80,7 +80,7 @@ def cached_llm() -> ChatModel:
 def server(input, output, session):
     setup_tracing()  # only when PHOENIX_TRACING=true; once, at the first session, after main()
     chat = Chat("chat", history=False)
-    turns: list[dict] = []  # earlier questions and answers, for follow-ups ("and Argentina?")
+    turns: list[Turn] = []  # earlier questions and answers, for follow-ups ("and Argentina?")
 
     # In the background, as chat.append_message_stream() does, so the session stays responsive;
     # a question sent while one is being answered waits its turn.

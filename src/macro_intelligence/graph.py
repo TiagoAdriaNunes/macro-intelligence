@@ -20,10 +20,10 @@ from langchain_core.runnables import Runnable, RunnableLambda, RunnableWithFallb
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field, field_validator
 
-from .analysis import summarize
-from .grounding import check_answer
+from .analysis import Summary, summarize
+from .grounding import Check, check_answer
 from .indicators import CATALOG, Indicator, catalog_markdown, catalog_text
-from .sources import fetch_indicator
+from .sources import Dataset, fetch_indicator
 
 IndicatorKey = Literal[tuple(CATALOG)]  # type: ignore[valid-type]
 
@@ -65,17 +65,23 @@ class Plan(BaseModel):
         return max(1, min(v, MAX_YEARS_BACK))
 
 
+class Turn(TypedDict):
+    """An earlier chat message."""
+
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class State(TypedDict):
     question: str
-    plan: NotRequired[dict]
-    datasets: NotRequired[list[dict]]
+    plan: NotRequired[Plan]
+    datasets: NotRequired[list[Dataset]]
     errors: NotRequired[list[str]]
     answer: NotRequired[str]
     model: NotRequired[str]  # model that wrote the answer
-    summaries: NotRequired[list[dict]]  # the data the model was given
-    check: NotRequired[dict]  # verify: {"figures": n, "unverified": [...]}
-    # Earlier chat turns, oldest first: [{"role": "user" | "assistant", "content": "..."}]
-    history: NotRequired[list[dict]]
+    summaries: NotRequired[list[Summary]]  # the data the model was given
+    check: NotRequired[Check]
+    history: NotRequired[list[Turn]]  # earlier chat messages, oldest first
 
 
 PLANNER_PROMPT = """You plan data retrieval for a macroeconomic research assistant. Today is {today}.
@@ -112,24 +118,21 @@ HISTORY_CHARS = 2000  # per message; long answers are cut
 def _history_messages(state: State) -> list[BaseMessage]:
     messages: list[BaseMessage] = []
     for turn in state.get("history", [])[-HISTORY_MESSAGES:]:
-        content = str(turn.get("content", ""))[:HISTORY_CHARS]
-        if turn.get("role") == "user":
-            messages.append(HumanMessage(content))
-        elif turn.get("role") == "assistant":
-            messages.append(AIMessage(content))
+        content = turn["content"][:HISTORY_CHARS]
+        messages.append(HumanMessage(content) if turn["role"] == "user" else AIMessage(content))
     return messages
 
 
-Fetcher = Callable[[Indicator, list[str], date], list[dict]]
+Fetcher = Callable[[Indicator, list[str], date], list[Dataset]]
 
 
 def _fetch_all(
     fetch: Fetcher, keys: list[str], countries: list[str], start: date
-) -> tuple[list[dict], list[str]]:
+) -> tuple[list[Dataset], list[str]]:
     """Fetch the indicators at the same time, since a World Bank request can take a minute.
     Returns the datasets, and an error line for each indicator that failed."""
 
-    def fetch_one(key: str) -> tuple[list[dict], str | None]:
+    def fetch_one(key: str) -> tuple[list[Dataset], str | None]:
         ind = CATALOG[key]
         try:
             return fetch(ind, countries, start), None
@@ -199,9 +202,9 @@ CATALOG_ANSWER = (
 
 def _route_after_plan(state: State) -> Literal["catalog", "fetch_data", "no_data"]:
     plan = state["plan"]
-    if plan.get("about_catalog"):
+    if plan.about_catalog:
         return "catalog"
-    return "fetch_data" if plan["indicators"] else "no_data"
+    return "fetch_data" if plan.indicators else "no_data"
 
 
 def _catalog(state: State) -> dict:
@@ -232,12 +235,12 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
             HumanMessage(state["question"]),
         ]
         result = planner.invoke(messages)
-        return {"plan": result.model_dump()}
+        return {"plan": result}
 
     def fetch_data(state: State) -> dict:
-        p = state["plan"]
-        start = _years_ago(date.today(), p["years_back"])
-        datasets, errors = _fetch_all(fetch, p["indicators"], p["countries"], start)
+        plan = state["plan"]
+        start = _years_ago(date.today(), plan.years_back)
+        datasets, errors = _fetch_all(fetch, plan.indicators, plan.countries, start)
         return {"datasets": datasets, "errors": errors}
 
     def answer(state: State) -> dict:
@@ -253,7 +256,7 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
         message = f"Question: {state['question']}\n\nData:\n{payload}"
         if errors:
             message += "\n\nThese series failed to load:\n" + "\n".join(f"- {e}" for e in errors)
-        if state["plan"].get("yearly_table"):
+        if state["plan"].yearly_table:
             message += (
                 "\n\nA table of the `yearly` values is shown below your answer, so don't list "
                 "them again (no table or list by year): sum up the trend in a few sentences."

@@ -8,6 +8,7 @@ from uuid import uuid4
 import pandas as pd
 from great_tables import GT
 
+from .analysis import Summary
 from .indicators import MONTH_ENDS
 
 COLUMNS = {
@@ -20,7 +21,7 @@ COLUMNS = {
 }
 
 
-def yearly_frame(summary: dict) -> pd.DataFrame:
+def yearly_frame(summary: Summary) -> pd.DataFrame:
     """One row per year: year-end value (the latest, for the current year), its date, the
     change from the previous year-end and, for monthly or daily data, the year's average."""
     rows = [
@@ -38,7 +39,7 @@ def yearly_frame(summary: dict) -> pd.DataFrame:
     return frame.dropna(axis="columns", how="all")  # e.g. no % change for rates
 
 
-def _labels(summary: dict, columns: pd.Index) -> dict[str, str]:
+def _labels(summary: Summary, columns: pd.Index) -> dict[str, str]:
     """Column headings. A daily series is reduced to month-end values (sources.py), so its
     yearly average is over those, not over every day."""
     labels = {c: COLUMNS[c] for c in columns}
@@ -47,7 +48,7 @@ def _labels(summary: dict, columns: pd.Index) -> dict[str, str]:
     return labels
 
 
-def _decimals(summary: dict, column: str) -> int:
+def _decimals(summary: Summary, column: str) -> int:
     if column == "pct_change" or "%" in summary["units"]:
         return 2
     return 4  # levels such as BRL per USD
@@ -63,7 +64,7 @@ def _theme_css(table_id: str) -> str:
     )
 
 
-def yearly_table_html(summary: dict) -> str:
+def yearly_table_html(summary: Summary) -> str:
     """The table for the chat, as HTML."""
     frame = yearly_frame(summary)
     change_units = summary.get("change_units", summary["units"])
@@ -94,7 +95,7 @@ def yearly_table_html(summary: dict) -> str:
     return table.as_raw_html()
 
 
-def yearly_table_text(summary: dict) -> str:
+def yearly_table_text(summary: Summary) -> str:
     """The table for the command line, as aligned plain text."""
     frame = yearly_frame(summary)
 

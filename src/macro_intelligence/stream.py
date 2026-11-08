@@ -17,9 +17,11 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.state import CompiledStateGraph
 from shiny.ui import HTML
 
-from .analysis import source_lines
-from .grounding import check_line
+from .analysis import Summary, source_lines
+from .graph import Plan, Turn
+from .grounding import Check, check_line
 from .indicators import CATALOG
+from .sources import Dataset
 from .tables import yearly_table_html
 
 log = logging.getLogger(__name__)
@@ -63,15 +65,14 @@ async def send(chunks: AsyncIterable[Chunk], message: Message) -> None:
             await message.append(chunk)
 
 
-def looking_up(plan: dict) -> str:
-    names = [CATALOG[key].name for key in plan.get("indicators", [])]
-    countries = plan.get("countries", [])
-    world_bank = any(CATALOG[key].source == "worldbank" for key in plan.get("indicators", []))
-    where = f" for {', '.join(countries)}" if world_bank and countries else ""
+def looking_up(plan: Plan) -> str:
+    names = [CATALOG[key].name for key in plan.indicators]
+    world_bank = any(CATALOG[key].source == "worldbank" for key in plan.indicators)
+    where = f" for {', '.join(plan.countries)}" if world_bank and plan.countries else ""
     return f"_Looking up: {', '.join(names)}{where}._\n\n"
 
 
-def footer(datasets: list[dict], model: str, check: dict | None = None) -> str:
+def footer(datasets: list[Dataset], model: str, check: Check | None = None) -> str:
     lines = source_lines(datasets)
     parts = []
     if lines:
@@ -92,7 +93,7 @@ class AnswerStream:
     """
 
     def __init__(
-        self, graph: CompiledStateGraph, question: str, history: list[dict] | None = None
+        self, graph: CompiledStateGraph, question: str, history: list[Turn] | None = None
     ) -> None:
         self.graph = graph
         self.question = question
@@ -104,8 +105,8 @@ class AnswerStream:
         self._lookup = ""  # the "Looking up" line shown before the answer
         self._streamed = ""  # answer text streamed so far
         self._run_id: str | None = None  # the model run that streamed it
-        self._datasets: list[dict] = []
-        self._summaries: list[dict] = []  # the data the model was given
+        self._datasets: list[Dataset] = []
+        self._summaries: list[Summary] = []  # the data the model was given
         self._yearly_table = False  # whether the plan asked for tables by year
         self._model = ""
 
@@ -143,9 +144,10 @@ class AnswerStream:
 
     def _on_update(self, node: str, update: dict[str, Any]) -> Iterator[Chunk]:
         if node == "plan":
-            self._yearly_table = bool(update["plan"].get("yearly_table"))
-            if update["plan"]["indicators"]:
-                self._lookup = looking_up(update["plan"])
+            plan: Plan = update["plan"]
+            self._yearly_table = plan.yearly_table
+            if plan.indicators:
+                self._lookup = looking_up(plan)
                 yield self._lookup
         elif node == "fetch_data":
             self._datasets = update.get("datasets", [])
