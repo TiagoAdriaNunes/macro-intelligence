@@ -143,7 +143,10 @@ def test_summarize_and_sources():
     ds = fake_dataset(CATALOG["br_ipca_12m"])
     s = summarize(ds)
     assert s["latest"] == {"date": "2026-09-01", "value": 4.58}
-    assert s["change_over_period"] == 0.36
+    assert s["changes"]["over_period"] == {
+        "from": {"date": "2026-08-01", "value": 4.22},
+        "change": 0.36,
+    }
     assert source_lines([ds, ds]) == ["IPCA inflation (12-month) (BRA): Test source, series 13522"]
 
 

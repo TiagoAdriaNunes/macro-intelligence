@@ -60,16 +60,16 @@ def test_numbers_from_the_question_count_as_data():
 
 def test_percent_change_of_levels_is_in_the_data():
     usd = summarize(fake_dataset(CATALOG["br_usd_brl"], values=(5.2301, 5.5013)))
-    assert usd["pct_change_over_period"] == 5.1854
+    assert usd["changes"]["over_period"]["pct_change"] == 5.1854
     assert check_answer("The real weakened about 5.2%, to 5.50 per USD.", [usd])["unverified"] == []
-    assert "pct_change_over_period" not in SUMMARY  # rates change in p.p., not %
+    assert "pct_change" not in SUMMARY["changes"]["over_period"]  # rates change in p.p., not %
 
 
 def test_check_line():
     assert check_line(None) == "" and check_line({"figures": 0, "unverified": []}) == ""
     assert check_line({"figures": 4, "unverified": []}).startswith("✓ Data check: all 4 figures")
     assert "(1 calculated from it)" in check_line({"figures": 4, "calculated": 1, "unverified": []})
-    assert "1 of 4 figures aren't in the fetched data" in check_line(
+    assert "1 of 4 figures match neither the fetched data" in check_line(
         {"figures": 4, "unverified": ["6.1"]}
     )
 

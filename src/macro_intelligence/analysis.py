@@ -1,6 +1,9 @@
 """Deterministic calculations on fetched datasets.
 
-Numbers are computed here with pandas, not by the LLM. The LLM only explains them.
+Numbers are computed here with pandas, not by the LLM. The LLM only explains them: each
+summary includes the changes questions usually ask about (since the previous observation,
+year to date, over 12 months, over the whole period, since the low and since the high), so
+the model rarely has to calculate.
 """
 
 import pandas as pd
@@ -8,37 +11,66 @@ import pandas as pd
 RECENT_POINTS = 12  # recent observations passed to the LLM per dataset
 
 
-def _num(value) -> float:
+def _num(value: float) -> float:
     return round(float(value), 4)  # plain float, so state stays JSON-serializable
 
 
+def _point(s: pd.Series, date: str) -> dict:
+    return {"date": date, "value": _num(s[date])}
+
+
+def _change(s: pd.Series, start: str, is_rate: bool) -> dict:
+    """From the observation dated `start` to the latest. A change in a rate is in percentage
+    points, so only levels (e.g. BRL per USD) also get a percent change."""
+    first, last = float(s[start]), float(s.iloc[-1])
+    change = {"from": _point(s, start), "change": _num(last - first)}
+    if not is_rate and first != 0:
+        change["pct_change"] = _num((last - first) / abs(first) * 100)
+    return change
+
+
+def _change_starts(s: pd.Series) -> dict[str, str]:
+    """Start date of each change to precompute, by name; the end is always the latest."""
+    dates = [str(d) for d in s.index]
+    latest = dates[-1]
+    starts = {"since_previous": dates[-2] if len(dates) > 1 else latest}
+    if len(latest) >= 7:  # monthly or daily (YYYY-MM-DD); annual series are dated by year only
+        year, month = int(latest[:4]), latest[5:7]
+        before_this_year = [d for d in dates if d < f"{year}-01"]
+        if before_this_year:  # the last value of the previous year
+            starts["year_to_date"] = before_this_year[-1]
+        a_year_ago = [d for d in dates if d[:7] == f"{year - 1}-{month}"]
+        if a_year_ago:
+            starts["over_12_months"] = a_year_ago[-1]
+    starts["over_period"] = dates[0]
+    starts["since_min"] = str(s.idxmin())
+    starts["since_max"] = str(s.idxmax())
+    return {name: start for name, start in starts.items() if start != latest}
+
+
 def summarize(dataset: dict) -> dict:
-    """Key statistics for one dataset, plus its most recent observations."""
+    """Key statistics for one dataset, its changes up to the latest value, and its most
+    recent observations."""
     meta = {k: dataset[k] for k in ("name", "source", "code", "country", "units", "frequency")}
     obs = dataset["observations"]
     if not obs:
         return {**meta, "observations": 0, "note": "No data published for this period."}
 
     s = pd.Series([o["value"] for o in obs], index=[o["date"] for o in obs])
-    first_date, last_date = s.index[0], s.index[-1]
-    summary = {
+    is_rate = "%" in dataset["units"]
+    first_date, last_date = str(s.index[0]), str(s.index[-1])
+    return {
         **meta,
         "observations": len(s),
         "period": f"{first_date} to {last_date}",
-        "latest": {"date": last_date, "value": _num(s.iloc[-1])},
-        "previous": {"date": s.index[-2], "value": _num(s.iloc[-2])} if len(s) > 1 else None,
-        "change_from_previous": _num(s.iloc[-1] - s.iloc[-2]) if len(s) > 1 else None,
-        "first": {"date": first_date, "value": _num(s.iloc[0])},
-        "change_over_period": _num(s.iloc[-1] - s.iloc[0]),
-        "min": {"date": s.idxmin(), "value": _num(s.min())},
-        "max": {"date": s.idxmax(), "value": _num(s.max())},
+        "latest": _point(s, last_date),
+        "min": _point(s, str(s.idxmin())),
+        "max": _point(s, str(s.idxmax())),
         "mean": _num(s.mean()),
+        "change_units": "percentage points" if is_rate else dataset["units"],
+        "changes": {name: _change(s, start, is_rate) for name, start in _change_starts(s).items()},
         "recent": [{"date": d, "value": _num(v)} for d, v in s.tail(RECENT_POINTS).items()],
     }
-    # Percent change only for levels (e.g. BRL per USD); a change in a rate is in percentage points
-    if "%" not in dataset["units"] and s.iloc[0] != 0:
-        summary["pct_change_over_period"] = _num((s.iloc[-1] - s.iloc[0]) / abs(s.iloc[0]) * 100)
-    return summary
 
 
 def source_lines(datasets: list[dict]) -> list[str]:
