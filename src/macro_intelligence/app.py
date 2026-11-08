@@ -18,10 +18,9 @@ from shinychat import Chat, page_chat
 from macro_intelligence.graph import ChatModel, build_graph
 from macro_intelligence.llm import make_llm
 from macro_intelligence.stream import AnswerStream, send
-from macro_intelligence.tracing import setup_tracing
+from macro_intelligence.tracing import setup_tracing, start_phoenix
 
 log = logging.getLogger(__name__)
-setup_tracing()  # only when PHOENIX_TRACING=true
 
 TITLE = "macro-intelligence"
 MODELS_CACHE_SECONDS = 3600  # how long the chosen free models are reused before checking again
@@ -78,6 +77,7 @@ def cached_llm() -> ChatModel:
 
 
 def server(input, output, session):
+    setup_tracing()  # only when PHOENIX_TRACING=true; once, at the first session, after main()
     chat = Chat("chat", history=False)
     turns: list[dict] = []  # earlier questions and answers, for follow-ups ("and Argentina?")
 
@@ -117,5 +117,6 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    start_phoenix()  # only when PHOENIX_TRACING=true and it isn't running; stops with the app
     # Shiny sets run_app to None only when running in the browser (Pyodide)
     run_app("macro_intelligence.app:app", launch_browser=True)  # pyrefly: ignore[not-callable]

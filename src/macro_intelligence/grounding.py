@@ -135,6 +135,6 @@ def check_line(check: dict | None) -> str:
         detail = f" ({calculated} calculated from it)" if calculated else ""
         return f"✓ Data check: all {n} figures match the fetched data{detail}."
     return (
-        f"⚠ Data check: {len(missing)} of {n} figures aren't in the fetched data, "
-        f"so check them: {', '.join(missing)}"
+        f"⚠ Data check: {len(missing)} of {n} figures match neither the fetched data nor a "
+        f"calculation from it, so they may be wrong: {', '.join(missing)}"
     )

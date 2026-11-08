@@ -31,10 +31,10 @@ uv run macro-intelligence "Is unemployment in Brazil falling?"   # command line
 
 ## Tracing (optional)
 
-To see each step, prompt and model call, start [Arize Phoenix](https://arize.com/docs/phoenix) locally, set `PHOENIX_TRACING=true` in `.env`, then run the app in another terminal:
+To see each step, prompt and model call in [Arize Phoenix](https://arize.com/docs/phoenix), set `PHOENIX_TRACING=true` in `.env`. The chat app then starts Phoenix too (UI at <http://localhost:6006>). For the command line, start it first:
 
 ```bash
-uv run python -m macro_intelligence.tracing    # UI at http://localhost:6006
+uv run python -m macro_intelligence.tracing
 ```
 
 ## Development

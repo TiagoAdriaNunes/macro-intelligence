@@ -1,17 +1,23 @@
 """Optional tracing with Arize Phoenix: free, open source, runs on your machine.
 
-1. Start Phoenix:          uv run python -m macro_intelligence.tracing   (UI at http://localhost:6006)
-2. Turn tracing on:        PHOENIX_TRACING=true in .env
-3. Ask questions in the app or CLI: each one appears in Phoenix as a trace, with every graph
-   node, prompt, model call and fallback.
+1. Turn tracing on:   PHOENIX_TRACING=true in .env
+2. Start the app:     uv run macro-intelligence-app   (it starts Phoenix too, UI at http://localhost:6006)
+   For the CLI, start Phoenix first: uv run python -m macro_intelligence.tracing
+3. Ask questions: each one appears in Phoenix as a trace, with every graph node, prompt,
+   model call and fallback.
 
 Phoenix and its LangChain instrumentation are dev dependencies; tracing stays off without them.
 """
 
+import atexit
+import functools
+import importlib.util
 import logging
 import os
 import socket
+import subprocess
 import sys
+import time
 
 from dotenv import load_dotenv
 
@@ -20,7 +26,7 @@ log = logging.getLogger(__name__)
 PROJECT_NAME = "macro-intelligence"
 PHOENIX_PORTS = {6006: "web UI and HTTP traces", 4317: "gRPC traces"}
 TRACES_PORT = 4317  # where traces go when PHOENIX_COLLECTOR_ENDPOINT isn't set
-_enabled = False
+STARTUP_SECONDS = 60  # how long start_phoenix() waits for the server
 
 
 def _port_in_use(port: int) -> bool:
@@ -29,17 +35,48 @@ def _port_in_use(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
-def setup_tracing() -> bool:
-    """Send LangChain/LangGraph traces to Phoenix when PHOENIX_TRACING is true. Safe to call twice."""
-    global _enabled
+def _tracing_on() -> bool:
     load_dotenv()
-    if _enabled or os.getenv("PHOENIX_TRACING", "").strip().lower() not in ("1", "true", "yes"):
-        return _enabled
+    return os.getenv("PHOENIX_TRACING", "").strip().lower() in ("1", "true", "yes")
+
+
+def _local_phoenix_down() -> bool:
+    """Traces go to a local Phoenix (no PHOENIX_COLLECTOR_ENDPOINT) that isn't running."""
+    return not os.getenv("PHOENIX_COLLECTOR_ENDPOINT") and not _port_in_use(TRACES_PORT)
+
+
+def start_phoenix() -> None:
+    """Start a local Phoenix for as long as this process runs, when tracing is on and Phoenix
+    isn't running yet. Call it before setup_tracing()."""
+    if not _tracing_on() or not _local_phoenix_down() or not importlib.util.find_spec("phoenix"):
+        return  # setup_tracing() explains a missing Phoenix
+    log.info("Starting Phoenix (UI at http://localhost:6006)")
+    server = subprocess.Popen(
+        [sys.executable, "-m", "macro_intelligence.tracing"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    atexit.register(server.terminate)
+    deadline = time.monotonic() + STARTUP_SECONDS
+    while not _port_in_use(TRACES_PORT):
+        if server.poll() is not None or time.monotonic() > deadline:
+            log.warning(
+                "Phoenix didn't start; run `uv run python -m macro_intelligence.tracing` to see why."
+            )
+            return
+        time.sleep(0.5)
+
+
+@functools.cache  # the first call decides; later calls return the same answer
+def setup_tracing() -> bool:
+    """Send LangChain/LangGraph traces to Phoenix when PHOENIX_TRACING is true."""
+    if not _tracing_on():
+        return False
     # Without a running Phoenix, every batch of traces would log a connection error
-    if not os.getenv("PHOENIX_COLLECTOR_ENDPOINT") and not _port_in_use(TRACES_PORT):
+    if _local_phoenix_down():
         log.warning(
             "PHOENIX_TRACING is on but Phoenix isn't running, so tracing is off. Start it with "
-            "`uv run python -m macro_intelligence.tracing`, then restart the app."
+            "`uv run python -m macro_intelligence.tracing`, then restart."
         )
         return False
     try:
@@ -55,7 +92,6 @@ def setup_tracing() -> bool:
     # Batched so tracing never slows answers; pending spans are sent when the process exits.
     provider = register(project_name=PROJECT_NAME, batch=True, verbose=False)
     LangChainInstrumentor().instrument(tracer_provider=provider)
-    _enabled = True
     log.info("Tracing to Phoenix, project %r", PROJECT_NAME)
     return True
 
