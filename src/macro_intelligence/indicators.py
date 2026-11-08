@@ -1,11 +1,14 @@
 """Catalog of economic indicators the agent can fetch.
 
 The LLM picks indicators from this catalog by key, so it never invents series codes.
-To add an indicator, add an entry here; the planner prompt picks it up automatically.
+To add an indicator, add an entry here; the planner prompt picks it up automatically. Then
+regenerate the data contracts (see contracts.py).
 """
 
 from dataclasses import dataclass
 from typing import Literal
+
+from .ontology import CONCEPTS
 
 Source = Literal["bcb", "worldbank"]
 Frequency = Literal["daily", "monthly", "annual"]
@@ -28,7 +31,10 @@ class Indicator:
     units: str
     frequency: Frequency  # as published by the source
     description: str
+    concept: str  # the ontology concept it measures (ontology.CONCEPTS)
+    publication_lag_days: int  # about how long after its period a value is published
     country: str | None = None  # set when the source only covers one country
+    derived_from: str | None = None  # key of the indicator it's calculated from
 
 
 CATALOG: dict[str, Indicator] = {
@@ -42,6 +48,8 @@ CATALOG: dict[str, Indicator] = {
             units="% change from previous month",
             frequency="monthly",
             description="Brazilian consumer price inflation, month-over-month.",
+            concept="inflation",
+            publication_lag_days=15,  # IBGE publishes around the 10th of the next month
             country="BRA",
         ),
         Indicator(
@@ -52,7 +60,10 @@ CATALOG: dict[str, Indicator] = {
             units="% change over 12 months",
             frequency="monthly",
             description="Brazilian consumer price inflation accumulated over 12 months.",
+            concept="inflation",
+            publication_lag_days=15,
             country="BRA",
+            derived_from="br_ipca_monthly",
         ),
         Indicator(
             key="br_selic_target",
@@ -62,6 +73,8 @@ CATALOG: dict[str, Indicator] = {
             units="% per year",
             frequency="daily",
             description="Brazilian policy interest rate target set by Copom.",
+            concept="policy_rate",
+            publication_lag_days=1,
             country="BRA",
         ),
         Indicator(
@@ -72,6 +85,8 @@ CATALOG: dict[str, Indicator] = {
             units="BRL per USD",
             frequency="daily",
             description="Commercial US dollar exchange rate (selling).",
+            concept="exchange_rate",
+            publication_lag_days=1,
             country="BRA",
         ),
         Indicator(
@@ -82,6 +97,8 @@ CATALOG: dict[str, Indicator] = {
             units="% of labor force",
             frequency="monthly",
             description="Brazilian unemployment rate, rolling quarter, from IBGE PNAD Continua.",
+            concept="unemployment",
+            publication_lag_days=35,  # IBGE publishes about a month after the quarter
             country="BRA",
         ),
         Indicator(
@@ -92,6 +109,8 @@ CATALOG: dict[str, Indicator] = {
             units="% per year, constant prices",
             frequency="annual",
             description="Real GDP growth for any country.",
+            concept="economic_growth",
+            publication_lag_days=210,  # a year's figures come out during the next year
         ),
         Indicator(
             key="wb_inflation",
@@ -101,6 +120,8 @@ CATALOG: dict[str, Indicator] = {
             units="% per year",
             frequency="annual",
             description="Annual consumer price inflation for any country.",
+            concept="inflation",
+            publication_lag_days=210,
         ),
         Indicator(
             key="wb_unemployment",
@@ -110,6 +131,8 @@ CATALOG: dict[str, Indicator] = {
             units="% of labor force, ILO modeled estimate",
             frequency="annual",
             description="Annual unemployment rate for any country, comparable across countries.",
+            concept="unemployment",
+            publication_lag_days=210,
         ),
     ]
 }
@@ -126,9 +149,12 @@ def catalog_markdown() -> str:
 
 
 def catalog_text() -> str:
-    """Catalog as bullet lines for the planner prompt."""
+    """Catalog as bullet lines for the planner prompt, with the concept each one measures."""
     lines = []
     for ind in CATALOG.values():
         scope = "Brazil only" if ind.country == "BRA" else "any country"
-        lines.append(f"- {ind.key}: {ind.description} [{ind.frequency}, {ind.units}, {scope}]")
+        concept = CONCEPTS[ind.concept].name
+        lines.append(
+            f"- {ind.key}: {ind.description} [{concept}; {ind.frequency}, {ind.units}, {scope}]"
+        )
     return "\n".join(lines)

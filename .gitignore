@@ -14,3 +14,6 @@ dist/
 .ruff_cache/
 .mypy_cache/
 .ipynb_checkpoints/
+
+# Generated locally to browse the data contracts (datacontract catalog)
+catalog/html/

@@ -37,6 +37,20 @@ To see each step, prompt and model call in [Arize Phoenix](https://arize.com/doc
 uv run python -m macro_intelligence.tracing
 ```
 
+## Data catalog
+
+`catalog/contracts/` has a data contract for each indicator in the [Open Data Contract Standard](https://bitol-io.github.io/open-data-contract-standard/latest/home) (ODCS v3.1.0): source, fields, coverage and how fresh the data is. `catalog/ontology.yaml` lists the concepts the indicators measure (inflation, interest rate, exchange rate, unemployment, growth) and how they relate, and [`catalog/ontology.md`](catalog/ontology.md) draws them as a diagram. Both are generated from `indicators.py` and `ontology.py`; after changing those, run:
+
+```bash
+uv run python -m macro_intelligence.contracts
+```
+
+To browse the contracts as web pages, generate an HTML catalog in `catalog/html/` (not committed) and open `catalog/html/index.html`:
+
+```bash
+uvx --from datacontract-cli datacontract catalog --files="catalog/contracts/*.odcs.yaml" --output=catalog/html
+```
+
 ## Deploy to Fly.io
 
 Requires [`flyctl`](https://fly.io/docs/flyctl/install/) and a Fly.io account.
