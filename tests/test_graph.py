@@ -6,6 +6,8 @@ from datetime import date
 
 import pandas as pd
 import pytest
+import requests
+from bcb.exceptions import SGSError
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -14,7 +16,7 @@ from pydantic import Field
 
 from macro_intelligence import sources
 from macro_intelligence.analysis import source_lines, summarize
-from macro_intelligence.graph import Plan, build_graph
+from macro_intelligence.graph import Plan, _years_ago, build_graph
 from macro_intelligence.indicators import CATALOG
 
 
@@ -149,9 +151,11 @@ def test_fallback_model_takes_over_after_errors_and_bad_replies():
 
 
 def test_plan_normalizes_countries_and_clamps_years():
-    plan = Plan(indicators=["wb_inflation"], countries=[" usa", "bra", "USA"], years_back=40)
+    plan = Plan(indicators=["wb_inflation"], countries=[" usa", "bra", "USA"], start_year=1990)
     assert plan.countries == ["USA", "BRA"]
-    assert plan.years_back == 10
+    assert plan.start_year == date.today().year - 10
+    assert Plan(start_year=2999).start_year == date.today().year
+    assert Plan().start_year == date.today().year - 5
     assert Plan(countries=[]).countries == ["BRA"]
 
 
@@ -252,3 +256,62 @@ def test_bcb_date_warning_is_hidden_by_a_filter_set_once():
     stderr = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stderr
     assert "bcb/sgs" not in stderr  # hidden
     assert "other.py" in stderr  # other warnings still show
+
+
+def test_fetch_starts_in_january_of_start_year_within_ten_years():
+    starts = []
+
+    def fetch(ind, countries, start):
+        starts.append(start)
+        return [fake_dataset(ind)]
+
+    today = date.today()
+    for start_year in (2023, today.year - 10):
+        llm = FakeLLM(plan=Plan(indicators=["br_ipca_12m"], start_year=start_year))
+        build_graph(llm, fetch=fetch).invoke({"question": "IPCA?"})
+    assert starts[0] == date(2023, 1, 1)
+    assert starts[1] == _years_ago(today, 10)  # not January: more than the BCB serves
+
+
+def test_a_timeout_is_tried_again(monkeypatch):
+    monkeypatch.setattr(sources.time, "sleep", lambda s: None)
+    rows = [{"economy": "BRA", "time": "YR2024", "value": 4.4}]
+    calls = []
+
+    def stalling_fetch(*args, **kwargs):
+        calls.append(1)
+        if len(calls) < sources.FETCH_ATTEMPTS:
+            raise requests.ReadTimeout("read timed out")
+        return rows
+
+    monkeypatch.setattr(sources.wb.data, "fetch", stalling_fetch)
+    [ds] = sources.fetch_indicator(CATALOG["wb_inflation"], ["BRA"], date(2024, 1, 1))
+    assert ds["observations"] == [{"date": "2024", "value": 4.4}]
+    assert len(calls) == sources.FETCH_ATTEMPTS
+
+
+def test_retries_give_up_after_the_last_attempt(monkeypatch):
+    monkeypatch.setattr(sources.time, "sleep", lambda s: None)
+    calls = []
+
+    def down(*args, **kwargs):
+        calls.append(1)
+        raise SGSError("SGS time series code=432 server error (status 502)")
+
+    monkeypatch.setattr(sources.sgs, "get", down)
+    with pytest.raises(SGSError):
+        sources.fetch_indicator(CATALOG["br_selic_target"], ["BRA"], date(2024, 1, 1))
+    assert len(calls) == sources.FETCH_ATTEMPTS
+
+
+def test_a_rejected_request_is_not_tried_again(monkeypatch):
+    calls = []
+
+    def rejected(*args, **kwargs):
+        calls.append(1)
+        raise SGSError("BCB error: O sistema aceita uma janela de consulta de, no máximo, 10 anos")
+
+    monkeypatch.setattr(sources.sgs, "get", rejected)
+    with pytest.raises(SGSError):
+        sources.fetch_indicator(CATALOG["br_selic_target"], ["BRA"], date(2014, 1, 1))
+    assert len(calls) == 1
