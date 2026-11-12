@@ -1,4 +1,4 @@
-app = "macro-intelligence"
+app = "your-app-name"
 primary_region = "gru"
 
 [build]
