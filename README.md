@@ -33,6 +33,29 @@ uv run macro-intelligence "Is unemployment in Brazil falling?"   # command line
 
 With `PHOENIX_TRACING=true` in `.env`, the chat app starts [Arize Phoenix](https://arize.com/docs/phoenix) automatically. Open <http://localhost:6006> to see each question's steps, prompts and model calls.
 
+## Evaluation (optional)
+
+`evals/questions.yaml` holds test questions about fixed past dates, each with the plan and figures expected. An experiment runs the agent on every question and scores it, and Phoenix keeps the results so you can compare models or code changes side by side. It all runs locally, apart from the OpenRouter calls.
+
+```bash
+uv run python -m macro_intelligence.tracing                    # start Phoenix, in another terminal
+uv run python -m macro_intelligence.experiments                # run and score every question
+uv run python -m macro_intelligence.experiments --dry-run 3    # try 3 questions, not saved
+uv run python -m macro_intelligence.experiments --model free   # on the free models
+uv run python -m macro_intelligence.experiments --refresh      # fetch the data again, not from evals/.cache
+```
+
+Open <http://localhost:6006>, then **Datasets**, to compare experiments. Each answer gets four scores:
+
+| Score | Checks | How |
+|---|---|---|
+| `plan_match` | the planner picked the expected indicators, countries, start year and flags | code |
+| `expected_figures` | the answer gives the correct figures for the question's date | code |
+| `grounding` | every figure in the answer comes from the fetched data (`grounding.py`) | code |
+| `answer_quality` | units, dates, sources, p.p. vs %, concision | LLM judge |
+
+Experiments use `openai/gpt-4o-mini` (paid, but a full run costs well under a cent), or `OPENROUTER_MODEL` if set, or `--model`. One fixed model makes experiments comparable; the free models change over time and from question to question. The data each question needs is fetched once and kept in `evals/.cache`, so a slow World Bank or BCB moment doesn't count against the model. The judge uses `EVAL_JUDGE_MODEL` (or `--judge-model`) if set, else the same model; a different, stronger judge grades more fairly. `--no-judge` skips it.
+
 ## Data catalog
 
 `catalog/contracts/` has a data contract for each indicator in the [Open Data Contract Standard](https://bitol-io.github.io/open-data-contract-standard/latest/home) (ODCS v3.1.0): source, fields, coverage and how fresh the data is. `catalog/ontology.yaml` lists the concepts the indicators measure (inflation, interest rate, exchange rate, unemployment, growth) and how they relate, and [`catalog/ontology.md`](catalog/ontology.md) draws them as a diagram. Both are generated from `indicators.py` and `ontology.py`; after changing those, run:

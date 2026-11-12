@@ -1901,6 +1901,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "great-tables" },
+    { name = "httpx" },
     { name = "langchain-core" },
     { name = "langchain-openrouter" },
     { name = "langgraph" },
@@ -1930,6 +1931,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "great-tables", specifier = ">=1.1.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain-core", specifier = ">=1.7.6" },
     { name = "langchain-openrouter", specifier = ">=0.2.9" },
     { name = "langgraph", specifier = ">=1.2.20" },

@@ -28,6 +28,11 @@ from .sources import Dataset, fetch_indicator
 IndicatorKey = Literal[tuple(CATALOG)]  # type: ignore[valid-type]
 
 MAX_YEARS_BACK = 10  # BCB limits daily series to 10 years per request
+DEFAULT_YEARS_BACK = 5
+
+
+def _default_start_year() -> int:
+    return date.today().year - DEFAULT_YEARS_BACK
 
 
 class Plan(BaseModel):
@@ -41,7 +46,13 @@ class Plan(BaseModel):
         default_factory=lambda: ["BRA"],
         description="ISO 3166-1 alpha-3 codes (e.g. BRA, USA, ARG) for World Bank indicators.",
     )
-    years_back: int = Field(5, description=f"Years of history needed, 1 to {MAX_YEARS_BACK}.")
+    # A year, not a number of years back: models read "end of 2023" as a year reliably, but often
+    # get the years between it and today wrong
+    start_year: int = Field(
+        default_factory=_default_start_year,
+        description="First year of data needed: the earliest year the question mentions, or "
+        "the current year minus N for 'the last N years'.",
+    )
     about_catalog: bool = Field(
         False,
         description="True only when the user asks in general what data or questions this "
@@ -59,10 +70,11 @@ class Plan(BaseModel):
         codes = list(dict.fromkeys(c.strip().upper() for c in v if c.strip()))
         return codes or ["BRA"]
 
-    @field_validator("years_back")
+    @field_validator("start_year")
     @classmethod
-    def _clamp_years(cls, v: int) -> int:
-        return max(1, min(v, MAX_YEARS_BACK))
+    def _clamp_start_year(cls, v: int) -> int:
+        this_year = date.today().year
+        return max(this_year - MAX_YEARS_BACK, min(v, this_year))
 
 
 class Turn(TypedDict):
@@ -96,7 +108,7 @@ Rules:
 - Use the earlier conversation to resolve follow-ups (e.g. "and Argentina?" repeats the last question for Argentina).
 - "Brazil only" indicators always return Brazilian data.
 - For "any country" indicators, list every country the question mentions as ISO alpha-3 codes.
-- years_back: how many years of history the question needs (1-{max_years}). Default 5.
+- start_year: the first year of data the question needs. Use the earliest year it mentions ("at the end of 2023" -> 2023, "from 2019 to 2023" -> 2019), or this year minus N for "the last N years". For follow-ups, keep the earlier question's period. Default {default_start}; no earlier than {min_year}.
 - Set yearly_table when the user asks how something evolved over several years or for values by year."""
 
 ANALYST_PROMPT = """You are a macroeconomic research assistant. Answer the latest question using only the data provided with it.
@@ -226,8 +238,12 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
     writer = _each_model(llm, lambda m: m | RunnableLambda(_require_text))
 
     def plan(state: State) -> dict:
+        today = date.today()
         system = PLANNER_PROMPT.format(
-            today=date.today().isoformat(), catalog=catalog_text(), max_years=MAX_YEARS_BACK
+            today=today.isoformat(),
+            catalog=catalog_text(),
+            default_start=_default_start_year(),
+            min_year=today.year - MAX_YEARS_BACK,
         )
         messages = [
             SystemMessage(system),
@@ -239,7 +255,9 @@ def build_graph(llm: ChatModel, fetch: Fetcher = fetch_indicator):
 
     def fetch_data(state: State) -> dict:
         plan = state["plan"]
-        start = _years_ago(date.today(), plan.years_back)
+        today = date.today()
+        # From January of start_year, but within the 10 years the BCB serves for daily series
+        start = max(date(plan.start_year, 1, 1), _years_ago(today, MAX_YEARS_BACK))
         datasets, errors = _fetch_all(fetch, plan.indicators, plan.countries, start)
         return {"datasets": datasets, "errors": errors}
 

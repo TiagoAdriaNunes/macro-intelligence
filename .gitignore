@@ -17,3 +17,6 @@ dist/
 
 # Generated locally to browse the data contracts (datacontract catalog)
 catalog/html/
+
+# Data fetched by experiments (macro_intelligence.experiments)
+evals/.cache/

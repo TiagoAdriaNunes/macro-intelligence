@@ -21,6 +21,7 @@ dependencies = [
     "shinychat>=0.7.2",
     "wbgapi>=1.0.14",
     "loguru>=0.7.3",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]

@@ -4,26 +4,35 @@ Datasets are plain dicts (JSON types), so the graph state stays serializable; th
 below let the type checker verify every key.
 """
 
+import time
 import warnings
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 from typing import TypedDict
 
+import httpx
 import pandas as pd
+import requests
 import wbgapi as wb
 from bcb import sgs
+from bcb.exceptions import BCBAPIServerError, BCBRateLimitError, SGSError
+from loguru import logger
 
 from .indicators import MONTH_ENDS, SOURCE_NAMES, Indicator
 
-REQUEST_TIMEOUT = 30  # seconds
+REQUEST_TIMEOUT = 30  # seconds; a 10-year daily BCB series can take 10-20
+FETCH_ATTEMPTS = 3  # a source that stalls often answers a fresh request in seconds
+RETRY_SECONDS = 2  # wait before the 2nd attempt; doubles each time
 
 # pandas warns that it guesses the format of BCB's dd/mm/yyyy dates; python-bcb parses them
 # correctly. Set once here: changing filters per request isn't thread-safe, and the graph
 # fetches indicators in parallel.
 warnings.filterwarnings("ignore", "Could not infer format", UserWarning, r"bcb\.sgs")
 
-# The World Bank API sometimes takes about a minute to respond, so give it more room.
+# When the World Bank API stalls, a new request usually beats waiting longer on the same one,
+# so fetch_indicator() gives up on a request after 30 seconds and tries again.
 # wbgapi passes get_options straight to requests.get.
-wb.get_options.setdefault("timeout", (10, 90))  # (connect, read) seconds
+wb.get_options.setdefault("timeout", (10, 30))  # (connect, read) seconds
 
 # A year's World Bank figures come out during the next year, so always ask for a few years:
 # otherwise a short window early in the year finds nothing published.
@@ -48,12 +57,41 @@ class Dataset(TypedDict):
 
 
 def fetch_indicator(ind: Indicator, countries: list[str], start: date) -> list[Dataset]:
-    """Fetch one indicator from `start` until today. Returns one dataset per country."""
+    """Fetch one indicator from `start` until today. Returns one dataset per country.
+    Tries again after a timeout or server error, up to FETCH_ATTEMPTS times in all."""
     if ind.source == "bcb":
-        return [_fetch_bcb(ind, start)]
+        return _with_retries(ind, lambda: [_fetch_bcb(ind, start)])
     if ind.source == "worldbank":
-        return _fetch_worldbank(ind, countries, start)
+        return _with_retries(ind, lambda: _fetch_worldbank(ind, countries, start))
     raise ValueError(f"Unknown source: {ind.source}")
+
+
+def _temporary(exc: Exception) -> bool:
+    """A failure worth another try: timeout, lost connection, server error or rate limit."""
+    if isinstance(exc, requests.Timeout | requests.ConnectionError):  # wbgapi
+        return True
+    if isinstance(exc, httpx.TransportError | BCBAPIServerError | BCBRateLimitError):  # python-bcb
+        return True
+    if isinstance(exc, wb.APIError):
+        return exc.code is not None and (exc.code == 429 or exc.code >= 500)
+    # python-bcb raises a plain SGSError for HTTP 5xx too, and for rejections such as a daily
+    # window over 10 years, which no retry fixes
+    return isinstance(exc, SGSError) and "server error" in str(exc)
+
+
+def _with_retries(ind: Indicator, fetch: Callable[[], list[Dataset]]) -> list[Dataset]:
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            return fetch()
+        except Exception as exc:
+            if attempt == FETCH_ATTEMPTS or not _temporary(exc):
+                raise
+            wait = RETRY_SECONDS * 2 ** (attempt - 1)
+            logger.warning(
+                "Fetching {} failed ({}); trying again in {} s", ind.key, type(exc).__name__, wait
+            )
+            time.sleep(wait)
+    raise AssertionError("unreachable")
 
 
 def _dataset(

@@ -1,0 +1,117 @@
+# Questions the agent is evaluated on (see experiments.py), with what's expected for each:
+#   indicators:    the catalog keys the planner should pick (empty: none apply)
+#   countries:     for World Bank indicators, the ISO alpha-3 codes it should pick
+#   start_year:    the latest first year of data that still covers the question
+#   about_catalog, yearly_table: checked only when given
+#   figures:       values the answer must give (any sign, at the precision it writes them)
+#   history:       earlier messages, for follow-up questions
+#
+# Questions name a past date, so the figures don't change as new data comes in. Keep dates
+# within the last 10 years: the planner fetches at most that much history.
+# Figures: BCB (SGS) and World Bank, checked 2026-11-12. The World Bank sometimes revises
+# past years; if a figure stops matching, compare it with the data the agent fetched.
+
+- question: What was the Selic target rate at the end of 2023?
+  indicators: [br_selic_target]
+  start_year: 2023
+  figures: [11.75]
+
+- question: What was 12-month IPCA inflation in December 2022?
+  indicators: [br_ipca_12m]
+  start_year: 2022
+  figures: [5.79]
+
+- question: How much did consumer prices in Brazil rise in March 2024, from the month before?
+  indicators: [br_ipca_monthly]
+  start_year: 2024
+  figures: [0.16]
+
+- question: What was the USD/BRL exchange rate at the end of 2024?
+  indicators: [br_usd_brl]
+  start_year: 2024
+  figures: [6.1923]
+
+- question: What was Brazil's PNAD unemployment rate in December 2023?
+  indicators: [br_unemployment]
+  start_year: 2023
+  figures: [7.4]
+
+- question: How did the Selic rate evolve from 2020 to 2024?
+  indicators: [br_selic_target]
+  start_year: 2020
+  yearly_table: true
+  figures: [2.0, 12.25] # end of 2020, end of 2024
+
+- question: Was Brazil's real interest rate positive in December 2023? Compare the Selic with 12-month IPCA inflation.
+  indicators: [br_ipca_12m, br_selic_target]
+  start_year: 2023
+  figures: [11.75, 4.62]
+
+- question: Qual era a taxa Selic em junho de 2024?
+  indicators: [br_selic_target]
+  start_year: 2024
+  figures: [10.5]
+
+- question: Compare GDP growth in Brazil, Argentina and Chile in 2022.
+  indicators: [wb_gdp_growth]
+  start_year: 2022
+  countries: [ARG, BRA, CHL]
+  figures: [3.02, 6.02, 2.06]
+
+- question: What was consumer price inflation in the United States in 2022?
+  indicators: [wb_inflation]
+  start_year: 2022
+  countries: [USA]
+  figures: [8.0]
+
+- question: How did unemployment in Germany and France change from 2019 to 2023?
+  indicators: [wb_unemployment]
+  start_year: 2019
+  countries: [DEU, FRA]
+  yearly_table: true
+  figures: [3.16, 3.07, 8.41, 7.33] # Germany 2019, 2023; France 2019, 2023
+
+- question: Show me Mexico's GDP growth by year from 2019 to 2024.
+  indicators: [wb_gdp_growth]
+  start_year: 2019
+  countries: [MEX]
+  yearly_table: true
+
+- question: What were GDP growth, inflation and unemployment in Japan in 2023?
+  indicators: [wb_gdp_growth, wb_inflation, wb_unemployment]
+  start_year: 2023
+  countries: [JPN]
+  figures: [0.72, 3.27, 2.6]
+
+- question: Compare annual inflation in India and Brazil in 2023, according to the World Bank.
+  indicators: [wb_inflation]
+  start_year: 2023
+  countries: [BRA, IND]
+  figures: [5.65, 4.59]
+
+- question: and Argentina?
+  history:
+    - role: user
+      content: What was Brazil's GDP growth in 2023?
+    - role: assistant
+      content: Brazil's GDP grew 3.24% in 2023 (World Bank, NY.GDP.MKTP.KD.ZG).
+  indicators: [wb_gdp_growth]
+  start_year: 2023
+  countries: [ARG]
+  figures: [-1.86]
+
+- question: What can I ask you?
+  indicators: []
+  about_catalog: true
+
+- question: Which data do you have?
+  indicators: []
+  about_catalog: true
+
+- question: What was the population of Brazil in 2022?
+  indicators: []
+  about_catalog: false
+
+- question: What was the price of bitcoin at the end of 2024?
+  indicators: []
+  about_catalog: false
